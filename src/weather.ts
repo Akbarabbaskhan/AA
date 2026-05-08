@@ -26,7 +26,7 @@ export async function fetchWeather(city: string): Promise<WeatherData> {
     .slice(0, 8)
     .map((h: Record<string, unknown>) => ({
       time: new Date(h.time as string).getHours(),
-      temperature: Math.round(h.temp_f as number),
+      temperature: Math.round(h.temp_c as number),
       condition: mapCode((h.condition as Record<string, number>).code, (h.is_day as number) === 1),
       chanceOfRain: h.chance_of_rain as number,
     }))
@@ -36,8 +36,8 @@ export async function fetchWeather(city: string): Promise<WeatherData> {
     const day = d.day as Record<string, unknown>
     return {
       day: DAYS[date.getDay()],
-      high: Math.round(day.maxtemp_f as number),
-      low: Math.round(day.mintemp_f as number),
+      high: Math.round(day.maxtemp_c as number),
+      low: Math.round(day.mintemp_c as number),
       condition: mapCode((day.condition as Record<string, number>).code, true),
       chanceOfRain: day.daily_chance_of_rain as number,
     }
@@ -46,8 +46,8 @@ export async function fetchWeather(city: string): Promise<WeatherData> {
   return {
     city: loc.name,
     country: loc.country,
-    temperature: Math.round(cur.temp_f),
-    feelsLike: Math.round(cur.feelslike_f),
+    temperature: Math.round(cur.temp_c),
+    feelsLike: Math.round(cur.feelslike_c),
     humidity: cur.humidity,
     windSpeed: Math.round(cur.wind_mph),
     condition: mapCode(cur.condition.code, isDay),

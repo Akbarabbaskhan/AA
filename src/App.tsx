@@ -15,12 +15,22 @@ function formatHour(h: number) {
   return h < 12 ? `${h} AM` : `${h - 12} PM`
 }
 
+function useLiveClock() {
+  const [time, setTime] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setTime(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  return time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
 export default function App() {
   const [data, setData]       = useState<WeatherData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState<string | null>(null)
   const [query, setQuery]     = useState('')
   const [visible, setVisible] = useState(false)
+  const clock = useLiveClock()
 
   const search = useCallback(async (city: string) => {
     setLoading(true); setError(null); setVisible(false)
@@ -88,11 +98,9 @@ export default function App() {
               {data?.country ?? ''}
             </div>
           </div>
-          {data && (
-            <div style={{ ...glass({ padding:'6px 14px', borderRadius:40 }), fontSize:11, fontWeight:700, color:sub, marginTop:4 }}>
-              🕐 {data.lastUpdated}
-            </div>
-          )}
+          <div style={{ ...glass({ padding:'6px 14px', borderRadius:40 }), fontSize:13, fontWeight:800, color:txt, marginTop:4, letterSpacing:0.5, fontVariantNumeric:'tabular-nums' }}>
+            🕐 {clock}
+          </div>
         </div>
 
         {/* ── SEARCH ── */}

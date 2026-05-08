@@ -66,22 +66,91 @@ export default function Mascot({ condition, onClick }: Props) {
         </radialGradient>
         <style>{`
           @keyframes blink {
-            0%,85%,100%{ transform:scaleY(1) }
-            92%{ transform:scaleY(0.05) }
+            0%,82%,100%{ transform:scaleY(1) }
+            88%{ transform:scaleY(0.05) }
+            91%{ transform:scaleY(1) }
+            94%{ transform:scaleY(0.05) }
           }
-          .lEye{ animation:blink 4s ease-in-out infinite; transform-origin:75px 88px; }
-          .rEye{ animation:blink 4s ease-in-out 0.12s infinite; transform-origin:125px 88px; }
+          .lEye{ animation:blink 3.5s ease-in-out infinite; transform-origin:75px 88px; }
+          .rEye{ animation:blink 3.5s ease-in-out 0.1s infinite; transform-origin:125px 88px; }
+
           @keyframes tailSwish {
-            0%,100%{ transform:rotate(-8deg) }
-            50%{ transform:rotate(12deg) }
+            0%  { transform:rotate(-10deg) }
+            30% { transform:rotate(14deg) }
+            55% { transform:rotate(-6deg) }
+            75% { transform:rotate(18deg) }
+            100%{ transform:rotate(-10deg) }
           }
-          .tail{ animation:tailSwish 2.5s ease-in-out infinite; transform-origin:85px 155px; }
-          @keyframes whiskerFloat {
+          .tail{ animation:tailSwish 2s ease-in-out infinite; transform-origin:85px 155px; }
+
+          @keyframes earTwitchL {
+            0%,70%,100%{ transform:rotate(0deg) }
+            75%{ transform:rotate(-12deg) }
+            80%{ transform:rotate(0deg) }
+            85%{ transform:rotate(-8deg) }
+            90%{ transform:rotate(0deg) }
+          }
+          @keyframes earTwitchR {
+            0%,60%,100%{ transform:rotate(0deg) }
+            65%{ transform:rotate(10deg) }
+            70%{ transform:rotate(0deg) }
+            75%{ transform:rotate(7deg) }
+            80%{ transform:rotate(0deg) }
+          }
+          .earL{ animation:earTwitchL 4s ease-in-out 0.8s infinite; transform-origin:65px 72px; }
+          .earR{ animation:earTwitchR 4s ease-in-out 2s infinite; transform-origin:135px 72px; }
+
+          @keyframes breathe {
+            0%,100%{ transform:scaleY(1) scaleX(1) }
+            50%{ transform:scaleY(1.025) scaleX(1.015) }
+          }
+          .body{ animation:breathe 3s ease-in-out infinite; transform-origin:100px 148px; }
+
+          @keyframes pawTapL {
+            0%,80%,100%{ transform:translateY(0) }
+            85%{ transform:translateY(-8px) }
+            90%{ transform:translateY(2px) }
+            95%{ transform:translateY(0) }
+          }
+          @keyframes pawTapR {
+            0%,60%,100%{ transform:translateY(0) }
+            65%{ transform:translateY(-8px) }
+            70%{ transform:translateY(2px) }
+            75%{ transform:translateY(0) }
+          }
+          .pawL{ animation:pawTapL 5s ease-in-out 1s infinite; }
+          .pawR{ animation:pawTapR 5s ease-in-out 2.5s infinite; }
+
+          @keyframes headBob {
+            0%,100%{ transform:translateY(0) rotate(0deg) }
+            25%{ transform:translateY(-2px) rotate(-1.5deg) }
+            75%{ transform:translateY(-1px) rotate(1deg) }
+          }
+          .head{ animation:headBob 4s ease-in-out infinite; transform-origin:100px 95px; }
+
+          @keyframes whiskerWave {
             0%,100%{ transform:rotate(0deg) }
-            50%{ transform:rotate(2deg) }
+            50%{ transform:rotate(3deg) }
           }
+          .wL{ animation:whiskerWave 2.8s ease-in-out infinite; transform-origin:90px 113px; }
+          .wR{ animation:whiskerWave 2.8s ease-in-out 1.4s infinite; transform-origin:110px 113px; transform:scaleX(-1); }
+
+          @keyframes sparkleFloat {
+            0%  { opacity:0; transform:translateY(0) scale(0.5) }
+            20% { opacity:1; transform:translateY(-8px) scale(1) }
+            80% { opacity:0.8; transform:translateY(-22px) scale(0.9) }
+            100%{ opacity:0; transform:translateY(-32px) scale(0.4) }
+          }
+          .sp1{ animation:sparkleFloat 2.4s ease-in-out 0s infinite; }
+          .sp2{ animation:sparkleFloat 2.4s ease-in-out 0.8s infinite; }
+          .sp3{ animation:sparkleFloat 2.4s ease-in-out 1.6s infinite; }
         `}</style>
       </defs>
+
+      {/* ── SPARKLES (float up around the cat) ── */}
+      <text className="sp1" x="22"  y="115" fontSize="13" style={{pointerEvents:'none'}}>✨</text>
+      <text className="sp2" x="168" y="105" fontSize="11" style={{pointerEvents:'none'}}>⭐</text>
+      <text className="sp3" x="42"  y="148" fontSize="10" style={{pointerEvents:'none'}}>💫</text>
 
       {/* ── TAIL ── */}
       <g className="tail">
@@ -92,19 +161,25 @@ export default function Mascot({ condition, onClick }: Props) {
       </g>
 
       {/* ── BODY ── */}
+      <g className="body">
       <ellipse cx="100" cy="148" rx="52" ry="45" fill="url(#bodyG)"/>
       {/* Belly patch */}
       <ellipse cx="100" cy="152" rx="28" ry="28" fill="url(#bellyG)" opacity="0.7"/>
 
       {/* ── EARS ── */}
-      {/* Left ear */}
-      <path d="M60,72 L48,42 L82,60 Z" fill="url(#bodyG)"/>
-      <path d="M62,70 L54,50 L78,64 Z" fill="#E8728A" opacity="0.85"/>
-      {/* Right ear */}
-      <path d="M140,72 L152,42 L118,60 Z" fill="url(#bodyG)"/>
-      <path d="M138,70 L146,50 L122,64 Z" fill="#E8728A" opacity="0.85"/>
+      <g className="earL">
+        <path d="M60,72 L48,42 L82,60 Z" fill="url(#bodyG)"/>
+        <path d="M62,70 L54,50 L78,64 Z" fill="#E8728A" opacity="0.85"/>
+      </g>
+      <g className="earR">
+        <path d="M140,72 L152,42 L118,60 Z" fill="url(#bodyG)"/>
+        <path d="M138,70 L146,50 L122,64 Z" fill="#E8728A" opacity="0.85"/>
+      </g>
 
-      {/* ── HEAD ── */}
+      </g>{/* end body breathing group */}
+
+      {/* ── HEAD (with bob) ── */}
+      <g className="head">
       <ellipse cx="100" cy="95" rx="50" ry="46" fill="url(#bodyG)"/>
       {/* Head sheen */}
       <ellipse cx="82" cy="76" rx="22" ry="16" fill="white" opacity="0.06"/>
@@ -177,23 +252,32 @@ export default function Mascot({ condition, onClick }: Props) {
                     <path d="M100,114 C106,116 110,118 112,117" fill="none" stroke="#555" strokeWidth="1.8" strokeLinecap="round"/></>}
 
       {/* ── WHISKERS ── */}
-      <line x1="60" y1="108" x2="90" y2="112" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2" strokeLinecap="round"/>
-      <line x1="58" y1="114" x2="89" y2="115" stroke="rgba(255,255,255,0.3)"  strokeWidth="1.2" strokeLinecap="round"/>
-      <line x1="60" y1="120" x2="90" y2="118" stroke="rgba(255,255,255,0.25)" strokeWidth="1.2" strokeLinecap="round"/>
-      <line x1="140" y1="108" x2="110" y2="112" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2" strokeLinecap="round"/>
-      <line x1="142" y1="114" x2="111" y2="115" stroke="rgba(255,255,255,0.3)"  strokeWidth="1.2" strokeLinecap="round"/>
-      <line x1="140" y1="120" x2="110" y2="118" stroke="rgba(255,255,255,0.25)" strokeWidth="1.2" strokeLinecap="round"/>
+      <g className="wL">
+        <line x1="60" y1="108" x2="90" y2="112" stroke="rgba(255,255,255,0.38)" strokeWidth="1.3" strokeLinecap="round"/>
+        <line x1="58" y1="114" x2="89" y2="115" stroke="rgba(255,255,255,0.33)" strokeWidth="1.3" strokeLinecap="round"/>
+        <line x1="60" y1="120" x2="90" y2="118" stroke="rgba(255,255,255,0.28)" strokeWidth="1.3" strokeLinecap="round"/>
+      </g>
+      <g className="wR">
+        <line x1="140" y1="108" x2="110" y2="112" stroke="rgba(255,255,255,0.38)" strokeWidth="1.3" strokeLinecap="round"/>
+        <line x1="142" y1="114" x2="111" y2="115" stroke="rgba(255,255,255,0.33)" strokeWidth="1.3" strokeLinecap="round"/>
+        <line x1="140" y1="120" x2="110" y2="118" stroke="rgba(255,255,255,0.28)" strokeWidth="1.3" strokeLinecap="round"/>
+      </g>
+
+      </g>{/* end head bob group */}
 
       {/* ── BLUSH ── */}
       <ellipse cx="62" cy="110" rx="16" ry="11" fill="url(#blushG)" opacity={isHappy?0.9:0.4}/>
       <ellipse cx="138" cy="110" rx="16" ry="11" fill="url(#blushG)" opacity={isHappy?0.9:0.4}/>
 
       {/* ── PAWS ── */}
-      <ellipse cx="72"  cy="188" rx="20" ry="13" fill="url(#bodyG)"/>
-      <ellipse cx="128" cy="188" rx="20" ry="13" fill="url(#bodyG)"/>
-      {/* Toe beans */}
-      {[64,72,80].map((x,i)=><ellipse key={i} cx={x} cy="191" rx="4" ry="3" fill="#E8728A" opacity="0.6"/>)}
-      {[120,128,136].map((x,i)=><ellipse key={i} cx={x} cy="191" rx="4" ry="3" fill="#E8728A" opacity="0.6"/>)}
+      <g className="pawL">
+        <ellipse cx="72" cy="188" rx="20" ry="13" fill="url(#bodyG)"/>
+        {[64,72,80].map((x,i)=><ellipse key={i} cx={x} cy="191" rx="4" ry="3" fill="#E8728A" opacity="0.6"/>)}
+      </g>
+      <g className="pawR">
+        <ellipse cx="128" cy="188" rx="20" ry="13" fill="url(#bodyG)"/>
+        {[120,128,136].map((x,i)=><ellipse key={i} cx={x} cy="191" rx="4" ry="3" fill="#E8728A" opacity="0.6"/>)}
+      </g>
 
       {/* ── UMBRELLA ── */}
       {accessory==='umbrella' && <g transform="translate(-18,-30)">

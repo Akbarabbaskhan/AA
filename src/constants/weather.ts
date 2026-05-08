@@ -2,7 +2,7 @@ import { WeatherCondition, MascotState } from '../types/weather';
 
 // Get a free API key at https://www.weatherapi.com/
 // Replace 'YOUR_API_KEY_HERE' with your key to enable live weather
-export const WEATHER_API_KEY = 'YOUR_API_KEY_HERE';
+export const WEATHER_API_KEY = 'cd54c93e92e34eb9be2140952260805';
 export const WEATHER_API_BASE = 'https://api.weatherapi.com/v1';
 
 export const WEATHER_GRADIENTS: Record<WeatherCondition, string[]> = {

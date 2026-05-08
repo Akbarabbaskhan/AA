@@ -18,6 +18,7 @@ export interface WeatherData {
   hourly: HourlyForecast[]
   weekly: DailyForecast[]
   lastUpdated: string
+  timezone: string
 }
 
 export interface HourlyForecast {

@@ -280,18 +280,19 @@ export default function Mascot({ condition, onClick }: Props) {
       </g>
 
       {/* ── UMBRELLA ── */}
-      {accessory==='umbrella' && <g transform="translate(-18,-30)">
-        <path d="M76,58 C76,20 124,20 124,58 C116,42 84,42 76,58Z" fill="url(#umbG)" stroke="#6040C0" strokeWidth="1.5"/>
-        <circle cx="76"  cy="58" r="3" fill="#9B78FF"/>
-        <circle cx="100" cy="28" r="3" fill="#9B78FF"/>
-        <circle cx="124" cy="58" r="3" fill="#9B78FF"/>
-        <line x1="80"  y1="42" x2="100" y2="58" stroke="#B8A0FF" strokeWidth="0.8" opacity="0.7"/>
-        <line x1="100" y1="24" x2="100" y2="58" stroke="#B8A0FF" strokeWidth="0.8" opacity="0.7"/>
-        <line x1="120" y1="42" x2="100" y2="58" stroke="#B8A0FF" strokeWidth="0.8" opacity="0.7"/>
-        <line x1="100" y1="58" x2="100" y2="104" stroke="#6040C0" strokeWidth="3" strokeLinecap="round"/>
-        <path d="M100,104 C100,116 90,122 86,114" fill="none" stroke="#6040C0" strokeWidth="3" strokeLinecap="round"/>
-        {/* raindrops on umbrella */}
-        {[82,92,108,116].map((x,i)=><ellipse key={i} cx={x} cy={i%2?36:44} rx="2" ry="3" fill="white" opacity="0.3"/>)}
+      {accessory==='umbrella' && <g>
+        {/* Handle on right side — stays outside head boundary */}
+        <line x1="157" y1="46" x2="163" y2="118" stroke="#6040C0" strokeWidth="3" strokeLinecap="round"/>
+        <path d="M163,118 C164,132 151,139 144,128" fill="none" stroke="#6040C0" strokeWidth="3" strokeLinecap="round"/>
+        {/* Canopy dome above head/ears (ears tip at y≈42) */}
+        <path d="M43,46 C43,6 157,6 157,46 C143,32 57,32 43,46Z" fill="url(#umbG)" stroke="#6040C0" strokeWidth="1.5"/>
+        <circle cx="43"  cy="46" r="3" fill="#9B78FF"/>
+        <circle cx="100" cy="12" r="3" fill="#9B78FF"/>
+        <circle cx="157" cy="46" r="3" fill="#9B78FF"/>
+        <line x1="73"  y1="26" x2="100" y2="44" stroke="#B8A0FF" strokeWidth="0.8" opacity="0.6"/>
+        <line x1="100" y1="8"  x2="100" y2="44" stroke="#B8A0FF" strokeWidth="0.8" opacity="0.6"/>
+        <line x1="127" y1="26" x2="100" y2="44" stroke="#B8A0FF" strokeWidth="0.8" opacity="0.6"/>
+        {[58,76,100,124,142].map((x,i)=><ellipse key={i} cx={x} cy={i%2===0?22:33} rx="2" ry="3" fill="white" opacity="0.25"/>)}
       </g>}
 
       {/* ── SCARF ── */}

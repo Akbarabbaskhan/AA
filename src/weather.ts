@@ -58,5 +58,6 @@ export async function fetchWeather(city: string): Promise<WeatherData> {
     hourly,
     weekly,
     lastUpdated: cur.last_updated.split(' ')[1],
+    timezone: loc.tz_id,
   }
 }

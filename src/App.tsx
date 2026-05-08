@@ -15,13 +15,20 @@ function formatHour(h: number) {
   return h < 12 ? `${h} AM` : `${h - 12} PM`
 }
 
-function useLiveClock() {
+function useLiveClock(timezone?: string) {
   const [time, setTime] = useState(() => new Date())
   useEffect(() => {
     const id = setInterval(() => setTime(new Date()), 1000)
     return () => clearInterval(id)
   }, [])
-  return time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  try {
+    return new Intl.DateTimeFormat([], {
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      timeZone: timezone,
+    }).format(time)
+  } catch {
+    return time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  }
 }
 
 export default function App() {
@@ -30,7 +37,7 @@ export default function App() {
   const [error, setError]     = useState<string | null>(null)
   const [query, setQuery]     = useState('')
   const [visible, setVisible] = useState(false)
-  const clock = useLiveClock()
+  const clock = useLiveClock(data?.timezone)
 
   const search = useCallback(async (city: string) => {
     setLoading(true); setError(null); setVisible(false)
@@ -158,7 +165,7 @@ export default function App() {
               <div style={{ textAlign:'center', marginTop:-8 }}>
                 <div style={{ fontSize:92, fontWeight:200, lineHeight:1, letterSpacing:-6, color:txt,
                   textShadow: light?'none':'0 4px 24px rgba(0,0,0,0.3)', transition:'color 0.6s' }}>
-                  {data.temperature}°
+                  {data.temperature}°C
                 </div>
                 <div style={{ fontSize:24, fontWeight:800, color:sub, marginTop:2, transition:'color 0.6s',
                   textShadow: light?'none':'0 2px 10px rgba(0,0,0,0.2)' }}>

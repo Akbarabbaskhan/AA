@@ -39,8 +39,10 @@ describe('seed: volume', () => {
   });
 
   it('produces 150 staff across six departments with an HOD each', async () => {
+    // Counted within a department: the office roles (coordinator, bursar) are staff too,
+    // but they belong to no department and are not part of the teaching establishment.
     const [staff, departments, headed] = await withTenant({ schoolId }, async () => [
-      await prisma.staff.count(),
+      await prisma.staff.count({ where: { departmentId: { not: null } } }),
       await prisma.department.count(),
       await prisma.department.count({ where: { hodStaffId: { not: null } } }),
     ]);

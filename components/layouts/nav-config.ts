@@ -23,6 +23,10 @@ export const NAV_BY_ROLE: Readonly<Record<RoleName, readonly NavItem[]>> = Objec
     { key: 'societies', href: '/societies', icon: 'users' },
     { key: 'attendance', href: '/attendance', icon: 'check' },
     { key: 'assignments', href: '/assignments', icon: 'clipboard' },
+    { key: 'quizzes', href: '/quizzes', icon: 'help-circle' },
+    { key: 'resources', href: '/resources', icon: 'folder' },
+    { key: 'doubts', href: '/doubts', icon: 'message' },
+    { key: 'mastery', href: '/mastery', icon: 'target' },
     { key: 'careers', href: '/careers', icon: 'compass' },
   ],
   PARENT: [
@@ -40,6 +44,7 @@ export const NAV_BY_ROLE: Readonly<Record<RoleName, readonly NavItem[]>> = Objec
     { key: 'assignments', href: '/assignments', icon: 'clipboard' },
     { key: 'quizzes', href: '/quizzes', icon: 'help-circle' },
     { key: 'resources', href: '/resources', icon: 'folder' },
+    { key: 'doubts', href: '/doubts', icon: 'message' },
     { key: 'remarks', href: '/remarks', icon: 'message' },
   ],
   HOD: [
@@ -50,6 +55,7 @@ export const NAV_BY_ROLE: Readonly<Record<RoleName, readonly NavItem[]>> = Objec
     { key: 'resources', href: '/resources', icon: 'folder' },
     { key: 'timetable', href: '/timetable', icon: 'calendar' },
     { key: 'quizzes', href: '/quizzes', icon: 'help-circle' },
+    { key: 'doubts', href: '/doubts', icon: 'message' },
   ],
   ADMIN: [
     { key: 'dashboard', href: '/dashboard', icon: 'home' },

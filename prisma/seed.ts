@@ -22,6 +22,12 @@ import { Rng } from './seed/random';
 import { seedAttendance, type SeedSection, type SeedSlot } from './seed/attendance';
 import { seedExams, type ExamSeedSection } from './seed/exams';
 import {
+  seedLearning,
+  SUBJECT_TOPICS,
+  type LearningSeedSection,
+  type LearningSeedSubject,
+} from './seed/learning';
+import {
   DESIGNATIONS,
   FEMALE_FIRST_NAMES,
   GUARDIAN_RELATIONS,
@@ -820,6 +826,45 @@ async function main(): Promise<void> {
   });
 
   // ---------------------------------------------------------------------------
+  // Learning: the vault, practice attempts, quizzes, resources, assignments, doubts.
+  //
+  // Seeded after the exams so a student's practice trend sits alongside a real mark
+  // history rather than floating on its own.
+  // ---------------------------------------------------------------------------
+  const learningSubjects: LearningSeedSubject[] = SUBJECTS.map((subject) => ({
+    id: subjectByCode.get(subject.code)!.id,
+    code: subject.code,
+    name: subject.name,
+    components: subject.components.flatMap((component) => {
+      const meta = componentIds.get(`${subject.code}:${component.code}`);
+      return meta ? [{ id: meta.id, code: component.code }] : [];
+    }),
+    topics: SUBJECT_TOPICS[subject.code] ?? [],
+  }));
+
+  const learningSections: LearningSeedSection[] = sectionPlans
+    .filter((section) => section.students.length > 0)
+    .map((section) => ({
+      id: section.id,
+      subjectId: subjectByCode.get(section.subjectCode)!.id,
+      subjectCode: section.subjectCode,
+      teacherStaffId: section.teacherId,
+      studentIds: section.students.map((student) => student.studentId),
+    }));
+
+  const learning = await seedLearning(prisma, rng, {
+    schoolId,
+    sections: learningSections,
+    subjects: learningSubjects,
+    today: todayString,
+    papers: 400,
+    attempts: 300,
+    attemptStudents: 60,
+    // Half the sections, two quizzes each: one already sat, one just opened.
+    quizzes: 40,
+  });
+
+  // ---------------------------------------------------------------------------
   // Demo logins, one per role, with documented credentials.
   // ---------------------------------------------------------------------------
   const demoAccounts: { role: RoleName; name: string; phone: string; email: string }[] = [
@@ -828,7 +873,7 @@ async function main(): Promise<void> {
     { role: 'SUPERADMIN', name: 'Volt Support', phone: '+923001110003', email: 'support@volt.test' },
   ];
 
-  for (const account of demoAccounts) {
+  for (const [index, account] of demoAccounts.entries()) {
     const user = await prisma.user.create({
       data: {
         schoolId,
@@ -840,6 +885,27 @@ async function main(): Promise<void> {
       },
     });
     await prisma.userRole.create({ data: { schoolId, userId: user.id, role: account.role } });
+
+    /*
+     * A coordinator and a bursar are employees of the school, so they get a Staff row like
+     * every other member of staff. Without one, a coordinator holding `assignment.manage`
+     * and `quiz.manage` cannot actually create either, because both records are attributed
+     * to a Staff id — the capability would be real and the action impossible.
+     *
+     * Volt's own support account is not school staff and deliberately gets no Staff row:
+     * it is a person at the vendor, and putting them on the school's establishment would
+     * make them appear in staff lists and department counts.
+     */
+    if (account.role !== 'SUPERADMIN') {
+      await prisma.staff.create({
+        data: {
+          schoolId,
+          userId: user.id,
+          employeeCode: `ADM-${String(index + 1).padStart(4, '0')}`,
+          designation: account.role === 'BURSAR' ? 'Accounts Officer' : 'Coordinator',
+        },
+      });
+    }
   }
 
   // The teacher, student and parent demo logins are real accounts from the data above, so
@@ -904,11 +970,21 @@ async function main(): Promise<void> {
     assessments: exams.assessments,
     marks: exams.marks,
     resultCards,
+    pastPapers: learning.papers,
+    paperAttempts: learning.attempts,
+    quizzes: learning.quizzes,
+    questions: learning.questions,
+    quizAttempts: learning.quizAttempts,
+    resources: learning.resources,
+    assignments: learning.assignments,
+    submissions: learning.submissions,
+    doubtThreads: learning.doubts,
+    topicMastery: learning.masteryRows,
   };
 
   console.log('\nSeeded:');
   for (const [key, value] of Object.entries(counts)) {
-    console.log(`  ${key.padEnd(16)} ${value}`);
+    console.log(`  ${key.padEnd(18)} ${value}`);
   }
   console.log(`  academic years   ${[previousYear.label, currentYear.label].join(', ')}`);
   console.log(
@@ -916,6 +992,9 @@ async function main(): Promise<void> {
       `${attendance.chronicAbsentees} chronic absentees, ${historyStart} to ${historyEnd}`,
   );
   console.log(`  exam marks       ${exams.meanPercent.toFixed(1)}% mean across 3 series`);
+  console.log(
+    `  practice         ${learning.attempts} attempts by 60 students across ${learning.papers} papers`,
+  );
   console.log(
     `  published        ${toPublish.map((series) => series.name).join(', ')} ` +
       `(the latest series is left unpublished for the demo)`,

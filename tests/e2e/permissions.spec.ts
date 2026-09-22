@@ -71,6 +71,41 @@ test.describe('student', () => {
     expect(slotAttempt.status()).toBe(403);
   });
 
+  test('cannot reach the question bank, the marking queue or a quiz analysis', async ({ page }) => {
+    // The learning module's staff surfaces. A student reaching any of these reads their
+    // classmates' answers, or the answer key itself, before they have sat the paper.
+    const api = await signIn(page, ACCOUNTS.student);
+
+    const quizzes = (await (await api.get('/api/quizzes')).json()) as { id: string }[];
+    expect(quizzes.length, 'the seed should give this student a quiz').toBeGreaterThan(0);
+    const quizId = quizzes[0]!.id;
+
+    for (const path of [
+      '/api/questions',
+      '/api/assignments/missing',
+      `/api/quizzes/${quizId}/analysis`,
+      `/api/quizzes/${quizId}/marking`,
+    ]) {
+      const response = await api.get(path);
+      expect([403, 404], `${path} returned ${response.status()}`).toContain(response.status());
+    }
+
+    const importAttempt = await api.post('/api/questions/import', {
+      data: { subjectId: '00000000-0000-4000-8000-000000000000', csv: 'type,body\nMCQ,x\n' },
+    });
+    expect(importAttempt.status()).toBe(403);
+
+    const markAttempt = await api.post(`/api/quizzes/${quizId}/marking`, {
+      data: { answerId: '00000000-0000-4000-8000-000000000000', marksAwarded: 10 },
+    });
+    expect(markAttempt.status()).toBe(403);
+
+    const gradeAttempt = await api.post('/api/submissions/grade', {
+      data: { submissionId: '00000000-0000-4000-8000-000000000000', marks: 10, feedback: null },
+    });
+    expect(gradeAttempt.status()).toBe(403);
+  });
+
   test('sees only their own row from the student list', async ({ page }) => {
     // The isolation rule has to hold on list endpoints, not just detail pages.
     const api = await signIn(page, ACCOUNTS.student);

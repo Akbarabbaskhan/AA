@@ -143,7 +143,7 @@ spec, develop against the neutral Volt theme and switch the LGS theme on only fo
 
 ## The seed is a deliverable
 
-`npm run db:seed` builds the demo tenant in **under three seconds**, idempotently (it
+`npm run db:seed` builds the demo tenant in **under 60 seconds**, idempotently (it
 rebuilds rather than duplicating, and the PRNG is seeded so two runs are identical):
 
 | | |
@@ -155,6 +155,13 @@ rebuilds rather than duplicating, and the PRNG is seeded so two runs are identic
 | Enrolments | 6,235 — students take 3–4 subjects, not all twelve |
 | Timetable | 872 slots over a 6-day, 8-period week, **provably clash-free** |
 | Academic years | 2025–26 and 2026–27, exactly one current |
+| Attendance | 583,166 records over 147 school days, 91.7% average, with chronic absentees to find |
+| Exams | 3 series, 2,493 papers, 71,469 marks on a realistic curve; two published, the latest left in draft for the demo to publish live |
+| Past papers | 400 across 8 years, 3 sessions and 3 variants, with mark schemes |
+| Practice | 326 timed attempts by 60 students, so the grade trend has a trend in it |
+| Quizzes | 40 — one already sat per section, one that has just opened, so there is something to actually do |
+| Question bank | 336 topic-tagged questions, and 2,096 topic mastery rows behind the weakness map |
+| Assignments | 436 with 5,500 submissions, some late, some ungraded, some missing |
 
 ### How the timetable is clash-free
 
@@ -199,8 +206,8 @@ full fee cycle.
 | **M0 Foundation** | Repo, CI, Docker, Prisma schema, auth, roles and permissions, theming and design system, app shell, seed with 2,000 students | **Complete** |
 | **M1 Attendance core** | Bulk import with column mapping, three-axis timetable clash detection, offline attendance marking, attendance dashboards | **Complete** |
 | **M2 Academics** | Exam series, component weighting, marks entry grid, moderation, publication, result card PDFs, student and teacher analytics | **Complete** |
-| M3 Learning | Past paper vault, practice engine, quiz engine, assignments, resources, doubt threads | Next |
-| M4 Fees and parents | Invoicing, vouchers, reconciliation, parent portal in Urdu, WhatsApp and SMS | |
+| **M3 Learning** | Past paper vault, practice engine, quiz engine with auto-marking and topic mastery, assignments, resources, doubt threads | **Complete** |
+| M4 Fees and parents | Invoicing, vouchers, reconciliation, parent portal in Urdu, WhatsApp and SMS | Next |
 | M5 Student life | Societies, events, effort leaderboards, careers, digital ID | |
 | M6 Harden and pilot | Performance pass, security review, backup drill, audit log UI, year-end rollover | |
 
@@ -341,6 +348,108 @@ at 62ms. The seed twice crossed its 60-second limit as attendance and exam data 
 both writes moved from `createMany` to set-based `unnest` inserts, which is roughly an
 order of magnitude faster.
 
+### What M3 delivers
+
+The milestone the spec calls the one that wins students, because it is the only part of an
+ERP a student opens voluntarily.
+
+**The past paper vault** organises by subject → component → year → session → variant, with
+the mark scheme and, where the school has it, the examiner report. Filters live in the URL,
+so "9701 P4, never attempted" is a link a student can send a friend. Volt ships the
+organising structure and the metadata — never the papers themselves; see the licensing note
+below.
+
+**The practice engine** is built around one rule: **the mark scheme stays locked while an
+attempt is open**. It is not hidden in the payload and revealed by the client — it is not
+in the payload at all, and the server returns it only in the response to the submit call.
+Without that the timer is theatre. An attempt is re-entrant, so a student whose phone dies
+at question 12 reopens the same attempt with the clock where they left it rather than
+getting a fresh hour. Running out of time does not seize the paper: the deadline is
+recorded, the submission is not refused.
+
+Afterwards the student marks their own script against the scheme and enters a total, and
+the **grade trend** plots it — grouped by subject *and component*, because "I have gone
+from a C to a B on P2" is a sentence about a component, and averaging P2 with P4 hides both
+stories. Goals and streaks count **papers sat, never grades**: effort is the thing a
+student controls.
+
+**The quiz engine** auto-marks MCQ, multiple-response, numeric with a tolerance band, and
+short text. Two decisions shape it:
+
+- Anything the machine cannot mark with certainty goes to the teacher's queue rather than
+  being guessed. A short answer that does not exactly match an accepted response is
+  *unmarked*, not *wrong* — a quiz result a student disputes and wins destroys the feature.
+- A blank answer is never penalised. Negative marking exists to punish a guess, and not
+  answering is not a guess. A total can never go below zero.
+
+Numeric tolerance is relative to the expected magnitude, which is what "±2%" means on a
+mark scheme; around an expected value of zero it falls back to an absolute band rather than
+silently demanding exactness. Question and option order are shuffled from a seed derived
+from the attempt id, so a reload shows the same paper in the same order — otherwise a
+student reloads until the question they know comes first.
+
+**The answer key never crosses the wire early.** The page a student opens carries no
+questions at all; those arrive from the start call, and `correct` and `explanation` only
+appear after submission, and only if the quiz allows it. An end-to-end test asserts the
+served HTML contains neither.
+
+**Anti-cheating is proportionate**: tab switches are counted so a teacher has a reason to
+ask a question. No webcam, no lockdown, no auto-submit.
+
+**Per-question analysis** is what makes a quiz worth setting. Facility per question, a
+distractor breakdown showing how the class actually answered — a wrong option pulling 40%
+is a misconception with a name — and a reteach list ordered weakest first. The marking
+queue is grouped by question rather than by student, because marking thirty answers to the
+same question in a row is how marking stays consistent.
+
+**Topic mastery** feeds the weakness map. It is a rolling average, not a lifetime one: a
+student who bombed electrolysis in September and has since fixed it should not still be
+told electrolysis is their weakness in March. Only auto-marked questions count — treating
+"not yet marked" as "wrong" would tell a student they are weak at a topic nobody has looked
+at — and a thin sample is shown as provisional rather than as a verdict.
+
+**Assignments** flag late work rather than refusing it, unless the teacher has explicitly
+turned late submission off. A student who submits at 12:04 has done the work; whether that
+is acceptable is the school's judgement, not the software's. The grading list shows every
+enrolled student including those who handed in nothing, because "who is missing" is the
+list a teacher actually needs.
+
+**Resources** carry version history, so a corrected handout does not orphan the old link
+and the library shows one entry rather than two. Download counts tell a teacher whether
+anyone opened the revision pack. Whole-school visibility is a broadcast and needs
+`resource.moderate`.
+
+**Doubt threads** are visible to the whole subject cohort rather than being private
+messages, because a question only one student can see has to be answered thirty times. A
+staff reply stamps the thread answered, which is what the teacher's "unanswered" queue runs
+on.
+
+Throughout, each record is authorised **against itself** rather than by asking whether it
+appears in a page of a list. A thread from last term, an assignment from last month and a
+handout from a full library all still open for someone entitled to read them.
+
+### Performance, measured
+
+Against the seeded volume — 400 papers, 326 practice attempts, 40 quizzes, 434 quiz
+attempts, 2,096 topic mastery rows — every learning read is an order of magnitude inside
+its budget:
+
+| Endpoint | Budget | Measured (p95) |
+| --- | --- | --- |
+| Past paper vault list | < 300ms | 8ms |
+| Vault, "never attempted" filter | < 300ms | 6ms |
+| Vault facets | < 300ms | 6ms |
+| Practice grade trend | < 300ms | 7ms |
+| Quiz list (student) | < 300ms | 5ms |
+| Quiz analysis with distractors | < 300ms | 16ms |
+| Weakness map | < 300ms | 2ms |
+| Assignment list | < 300ms | 4ms |
+| Resource library | < 300ms | 8ms |
+| 30 concurrent vault reads | a class told to revise | 76ms wall |
+
+These are assertions in `tests/integration/learning-performance.test.ts`, not a one-off
+measurement — a regression fails the suite.
+
 ### Deliberately not built
 
 Library, transport, hostel, payroll and biometric hardware modules. Every competitor in
@@ -371,14 +480,19 @@ Where Chromium is provisioned outside Playwright (locked-down CI images), point
 | Layer | Tool | What it covers |
 | --- | --- | --- |
 | Unit | Vitest | **Grading** (component weighting, boundary arithmetic, class statistics, outliers, percentile), **attendance percentages**, the lock window, offline conflict resolution and **timetable clash logic** — the four the spec requires to be near 100%, because wrong answers there are invisible and expensive. Plus CSV parsing, column mapping and import date handling |
-| Integration | Vitest + real Postgres | Tenancy enforcement, permission boundaries, the register and offline sync, the import acceptance criterion, the full exam cycle from setup to PDF, the seed's own invariants |
-| E2E | Playwright | The demo-script flows on a mobile viewport, including marking a register in airplane mode and watching it sync, and a per-role 403 matrix over the real HTTP stack |
+| Integration | Vitest + real Postgres | Tenancy enforcement, permission boundaries, the register and offline sync, the import acceptance criterion, the full exam cycle from setup to PDF, the whole learning module end to end, the seed's own invariants, and the read budgets as assertions rather than as a one-off measurement |
+| E2E | Playwright | The demo-script flows on a mobile viewport, including marking a register in airplane mode and watching it sync, sitting a quiz, a timed practice attempt proving the mark scheme stays locked, and a per-role 403 matrix over the real HTTP stack |
 
 Both suites run against a single shared database, so both are configured to run
 sequentially. Parallel files racing over the same tenant is a flake factory.
 
 Tests run against a real database, never a mock. A tenancy guard tested against a fake
 client would prove nothing.
+
+No test is allowed to skip itself into a pass. A quiz allows a fixed number of attempts, so
+the end-to-end test that sits one creates its own through the API rather than consuming a
+seeded quiz — otherwise it would pass on the first run and silently skip on every run
+after, which reads exactly like a pass.
 
 ---
 
@@ -403,6 +517,18 @@ M1 added the **per-role 403 matrix** (`tests/e2e/permissions.spec.ts`), which dr
 real HTTP stack: an unauthenticated caller gets 401 everywhere, a student is refused every
 staff endpoint and cannot read another student's attendance by id, a teacher cannot reach
 the campus reports or run an import, and a bursar is refused every academic endpoint.
+
+M3 added file handling and three more ways to leak something. Uploads are typed by
+**sniffing the magic number**, never by trusting the extension or the client's
+`Content-Type`, and nothing is ever served with an executable content type; stored files
+are reached only through short-lived HMAC-signed URLs scoped to the school's own key
+prefix. The quiz answer key is withheld by **not being in the payload**, which is the only
+version of that guarantee a client cannot undo. And M3 fixed a bug of its own making:
+`openResource`, `getAssignment` and `getDoubt` all authorised by asking whether the record
+appeared in a page of a list, which would have started refusing perfectly legitimate reads
+the moment a school's library, section or subject outgrew that page. Each now authorises
+against the record itself, with tests that backdate a thread off the recent list and open
+it anyway.
 
 Scheduled for M6: the full security review, encryption at rest, and the backup and restore
 drill. Do not go live at a school before those pass.

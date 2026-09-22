@@ -1,0 +1,24 @@
+{
+  "extends": ["next/core-web-vitals"],
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "@prisma/client",
+            "importNames": ["PrismaClient"],
+            "message": "Import the tenant-scoped client from @/lib/db instead of constructing PrismaClient. Bypassing it disables the school_id guard."
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["lib/db/index.ts", "prisma/seed.ts", "tests/**/*.ts"],
+      "rules": { "no-restricted-imports": "off" }
+    }
+  ],
+  "ignorePatterns": ["node_modules/", ".next/", "public/sw.js"]
+}

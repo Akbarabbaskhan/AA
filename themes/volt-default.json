@@ -1,0 +1,41 @@
+{
+  "id": "volt-default",
+  "displayName": "Volt",
+  "publicUseApproved": true,
+  "light": {
+    "brandPrimary": "#1E3A8A",
+    "brandOnPrimary": "#FFFFFF",
+    "accent": "#1D4ED8",
+    "accentOn": "#FFFFFF",
+    "bg": "#FFFFFF",
+    "surface": "#FAFAFA",
+    "surfaceRaised": "#FFFFFF",
+    "textPrimary": "#0A0A0A",
+    "textSecondary": "#52525B",
+    "textTertiary": "#6B6B75",
+    "borderSubtle": "#E4E4E7",
+    "borderStrong": "#D4D4D8",
+    "success": "#15803D",
+    "warning": "#A16207",
+    "danger": "#B91C1C",
+    "info": "#1D4ED8"
+  },
+  "dark": {
+    "brandPrimary": "#93C5FD",
+    "brandOnPrimary": "#0A0A0A",
+    "accent": "#93C5FD",
+    "accentOn": "#09090B",
+    "bg": "#09090B",
+    "surface": "#131316",
+    "surfaceRaised": "#1C1C21",
+    "textPrimary": "#FAFAFA",
+    "textSecondary": "#B4B4BD",
+    "textTertiary": "#94949E",
+    "borderSubtle": "#27272A",
+    "borderStrong": "#3F3F46",
+    "success": "#4ADE80",
+    "warning": "#FBBF24",
+    "danger": "#FCA5A5",
+    "info": "#93C5FD"
+  }
+}

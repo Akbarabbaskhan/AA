@@ -1,0 +1,94 @@
+{
+  "app": {
+    "name": "Volt",
+    "tagline": "School ERP and student portal"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "timetable": "Timetable",
+    "attendance": "Attendance",
+    "results": "Results",
+    "papers": "Past papers",
+    "assignments": "Assignments",
+    "societies": "Societies",
+    "careers": "Careers",
+    "marks": "Marks",
+    "quizzes": "Quizzes",
+    "resources": "Resources",
+    "remarks": "Remarks",
+    "students": "Students",
+    "staff": "Staff",
+    "exams": "Exams",
+    "fees": "Fees",
+    "announcements": "Announcements",
+    "reports": "Reports",
+    "settings": "Settings",
+    "children": "My children",
+    "more": "More"
+  },
+  "auth": {
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "identifier": "Phone number or email",
+    "identifierHint": "Most people sign in with their phone number",
+    "password": "Password",
+    "forgotPassword": "Forgot your password?",
+    "signingIn": "Signing in…",
+    "welcome": "Welcome back",
+    "errors": {
+      "invalidCredentials": "That phone number or password is not right.",
+      "accountLocked": "Too many attempts. Try again in 15 minutes.",
+      "unknownSchool": "We could not find that school.",
+      "unexpected": "Something went wrong. Please try again."
+    }
+  },
+  "roles": {
+    "STUDENT": "Student",
+    "PARENT": "Parent",
+    "TEACHER": "Teacher",
+    "HOD": "Head of department",
+    "ADMIN": "Coordinator",
+    "BURSAR": "Accounts",
+    "SUPERADMIN": "Volt staff"
+  },
+  "roleSwitcher": {
+    "label": "Viewing as",
+    "switch": "Switch role"
+  },
+  "impersonation": {
+    "banner": "{actor} is signed in as {target}. Everything you do is recorded.",
+    "end": "End session"
+  },
+  "states": {
+    "loading": "Loading",
+    "emptyTitle": "Nothing here yet",
+    "errorTitle": "That did not load",
+    "errorBody": "Check your connection and try again.",
+    "retry": "Try again",
+    "offline": "Offline",
+    "pendingSync": "{count, plural, =0 {All changes saved} one {1 change waiting to sync} other {# changes waiting to sync}}"
+  },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "search": "Search",
+    "today": "Today",
+    "language": "Language"
+  },
+  "dashboard": {
+    "students": "Students",
+    "staff": "Staff",
+    "sections": "Sections",
+    "timetabledPeriods": "Timetabled periods",
+    "glanceLabel": "Campus at a glance",
+    "structure": "{subjects, plural, one {# subject} other {# subjects}} across {programmes, plural, one {# programme} other {# programmes}} and {departments, plural, one {# department} other {# departments}}",
+    "noAcademicYear": "No academic year set",
+    "foundationTitle": "Attendance lands in M1",
+    "foundationBody": "The register, the offline queue and the dashboards build on top of this foundation. Every number above is a live query through the tenant-scoped client."
+  }
+}

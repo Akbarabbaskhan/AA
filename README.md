@@ -1,0 +1,267 @@
+# Volt
+
+A multi-tenant school ERP and student portal for A Level and O Level campuses in Pakistan.
+
+This repository implements the Volt Product & Engineering Spec. It is built milestone by
+milestone; **M0 (Foundation) is complete**. See [Milestone status](#milestone-status).
+
+Three rules from the spec govern everything here:
+
+1. **Nothing ships fake.** Every feature listed as in-scope is wired end to end — real
+   database writes, real auth, real files. There is no placeholder UI in this repo.
+2. **Volt is a web app, not an app-store app.** A responsive web application that installs
+   as a PWA. No native build, no store submission.
+3. **Multi-tenant from line one.** Every tenant table carries `school_id`. Branding,
+   grading scales and fee structures are per-tenant configuration, never hardcoded.
+
+---
+
+## Quick start
+
+```bash
+cp .env.example .env         # then set DATABASE_URL, REDIS_URL and NEXTAUTH_SECRET
+npm install
+npx prisma migrate deploy
+npm run db:seed
+npm run dev
+```
+
+Or bring the whole stack up with Docker:
+
+```bash
+NEXTAUTH_SECRET=$(openssl rand -base64 32) docker compose up --build
+```
+
+The app runs with only `DATABASE_URL` and `REDIS_URL` set. Every external integration
+(WhatsApp, SMS, email, payments, object storage) sits behind an interface whose mock
+implementation is selected when its key is absent, so the product is fully demoable before
+any gateway contract exists.
+
+### Demo logins
+
+After `npm run db:seed`, password `Volt2026!` for every account:
+
+| Role | Sign in with |
+| --- | --- |
+| Coordinator / Admin | `admin@volt-demo.test` or `0300 111 0001` |
+| Accounts / Bursar | `bursar@volt-demo.test` or `0300 111 0002` |
+| Volt staff (Super Admin) | `support@volt.test` or `0300 111 0003` |
+| Teacher (also an HOD) | `emp-0001@volt-demo.test` |
+| Student | `as1-0001@volt-demo.test` |
+| Parent | phone `+923001500000` |
+
+Sign in with a phone number or an email. Phone is the primary identifier — `03001234567`,
+`+92 300 1234567` and `0300-123-4567` all resolve to the same account.
+
+---
+
+## Architecture
+
+### Multi-tenancy is enforced, not remembered
+
+`lib/db/tenancy.ts` is a Prisma client extension that injects `school_id` from the request
+context into the `where` of every read and the `data` of every write on every tenant-scoped
+model. A query issued with no tenant context **throws** rather than returning every school's
+rows, and a query that names a different school throws `CrossTenantAccessError`.
+
+```ts
+// A service never mentions schoolId. This returns only the current tenant's students.
+await withTenant({ schoolId }, () => prisma.student.findMany());
+```
+
+Two tests keep this honest:
+
+- `tests/unit/tenancy.test.ts` fails if any model is added without `school_id` and without
+  a recorded decision about why it is safe (`lib/db/tenant-models.ts`).
+- `tests/integration/tenancy-runtime.test.ts` runs against a real Postgres with two tenants
+  and asserts that a lookup by another school's primary key returns `null`.
+
+Crossing the boundary deliberately requires `withoutTenantScope()` — awkward to type and
+easy to grep for, because every use is a place a reviewer should look.
+
+One asymmetry worth knowing: Prisma's generated types still require `schoolId` on a
+`create`, so the compiler asks for it on writes even though the extension supplies it.
+Reads — the actual data-leak vector — are scoped with no help from the caller.
+
+### Academic-year scoping
+
+Attendance, marks, enrolments, fees and timetables all carry `academic_year_id`. Rolling
+over to a new year never touches last year's rows, and a result card from three years ago
+still prints. `tests/unit/tenancy.test.ts` asserts this for every academic model.
+
+### Permissions
+
+`lib/permissions/` holds a capability matrix (`resource.action`) and the row-level scope
+rules. Route handlers check capabilities, never role names.
+
+- Seven roles, held many-to-many: one account can be teacher, HOD and parent at once.
+- Row-level scoping: a teacher sees only sections they teach, a parent only their linked
+  children, an HOD only their own department.
+- A bursar holds no `marks.*` or `remark.*` capability at all — asserted in tests.
+- A student's own record is enforced as a **query predicate**, so the rule holds on list and
+  search endpoints too, not just on detail pages.
+
+### Layering
+
+Route handlers stay thin: validate with Zod, check permission, call a service in
+`lib/services/`, return. There are no Prisma calls in React components, and an ESLint rule
+blocks importing `PrismaClient` anywhere but the three sanctioned files.
+
+### Money
+
+Every amount is an integer in **paisa**. A test asserts there is no `Float` or `Decimal`
+anywhere in the schema. Conversion to rupees happens once, at the display edge, in
+`lib/i18n/format.ts`.
+
+---
+
+## Design system
+
+Apple-like restraint, not an Apple copy. Inter (open licence) rather than SF Pro, whose
+licence covers Apple platforms only.
+
+All colour is CSS custom properties. **There are no hex codes in component code.** A tenant
+theme is a JSON file in `themes/`, so a second school is a new file and a row — nothing
+else. `tests/unit/theme.test.ts` asserts, for every theme in both light and dark:
+
+- `--brand-on-primary` passes 4.5:1 against `--brand-primary`
+- every text token, tertiary included, passes 4.5:1 against both background depths
+- every status colour passes 4.5:1 as text
+- dark mode is authored rather than a mechanical inversion of light
+
+Other rules in the build: tabular numerals on every mark, fee and percentage; 8px spacing
+scale; 44×44px minimum tap targets; bottom tab bar on mobile (five items max) and a sidebar
+at ≥1024px; `prefers-reduced-motion` respected; loading, empty and error states as
+components rather than as a convention people remember.
+
+`themes/lgs.json` is marked `publicUseApproved: false`. Per the branding section of the
+spec, develop against the neutral Volt theme and switch the LGS theme on only for the pitch
+— and not at all in anything public until there is written permission.
+
+---
+
+## The seed is a deliverable
+
+`npm run db:seed` builds the demo tenant in **under three seconds**, idempotently (it
+rebuilds rather than duplicating, and the PRNG is seeded so two runs are identical):
+
+| | |
+| --- | --- |
+| Students | 2,000 across AS1 and A2, realistic Pakistani names, real A Level combinations |
+| Guardians | 1,857 accounts, some linked to two children so the child switcher has a subject |
+| Staff | 150 across 6 departments, 111 teaching, an HOD for each department |
+| Sections | 218, every one with a teacher and a room |
+| Enrolments | 6,235 — students take 3–4 subjects, not all twelve |
+| Timetable | 872 slots over a 6-day, 8-period week, **provably clash-free** |
+| Academic years | 2025–26 and 2026–27, exactly one current |
+
+### How the timetable is clash-free
+
+Clash detection runs on three axes: teacher double-booked, room double-booked, and
+**student-cohort clash** — two subjects one student takes, scheduled in the same period.
+The third is the hard one and the real differentiator.
+
+The seed makes it structural rather than searched-for, the way real A Level colleges do it:
+every subject sits in exactly one **option block**, a student takes at most one subject per
+block, and all sections of a block run at the same time. Each (year group, block) pair gets
+four of the week's 48 slots and no two pairs share one, so distinct teachers and rooms
+within a pair are all that is needed.
+
+`tests/integration/seed.test.ts` runs the real three-axis detector over all 872 slots and
+6,235 enrolments and asserts zero clashes. `tests/unit/curriculum.test.ts` asserts the
+invariant the scheme rests on — no subject combination takes two subjects from one block.
+That test caught a genuine bug during M0: Biology and Mathematics had been placed in the
+same block while "Pre-medical with Maths" takes both.
+
+Seed data grows with each milestone. M1 adds 180 days of attendance history, M2 three exam
+series, M3 past papers and quiz attempts, M4 a full fee cycle.
+
+---
+
+## Milestone status
+
+| Milestone | Ships | Status |
+| --- | --- | --- |
+| **M0 Foundation** | Repo, CI, Docker, Prisma schema, auth, roles and permissions, theming and design system, app shell, seed with 2,000 students | **Complete** |
+| M1 Attendance core | Bulk import, timetable builder with clash detection, offline attendance marking, dashboards | Next |
+| M2 Academics | Exam series, component weighting, marks entry grid, moderation, result card PDFs | |
+| M3 Learning | Past paper vault, practice engine, quiz engine, assignments, resources, doubt threads | |
+| M4 Fees and parents | Invoicing, vouchers, reconciliation, parent portal in Urdu, WhatsApp and SMS | |
+| M5 Student life | Societies, events, effort leaderboards, careers, digital ID | |
+| M6 Harden and pilot | Performance pass, security review, backup drill, audit log UI, year-end rollover | |
+
+### What M0 delivers
+
+- **Schema** — 60 models covering every entity in the spec's data model, with the indexes
+  that matter at 2,000 students and the constraints Prisma cannot express (one current
+  academic year per school, non-negative money) as a hand-written migration.
+- **Auth** — phone-or-email + password, argon2id, account lockout after 5 failed attempts
+  for 15 minutes, and **per-role session lengths**: 12 hours for admin and bursar, 30 days
+  for everyone else. NextAuth's `maxAge` is global and cannot express that, so the token
+  carries its own deadline, checked on every request.
+- **Permissions** — the capability matrix, row-level scope helpers, and 14 tests over the
+  role boundaries.
+- **Theming** — token system, two themes, contrast enforced by test.
+- **i18n** — English and Urdu, RTL, PKR and `DD MMM YYYY` formatting, with a test that fails
+  if the two locale files drift apart or if Urdu is left as copied English.
+- **Shell** — installable PWA with an offline app-shell cache, sidebar/tab-bar navigation
+  per role, and the three designed list states.
+- **CI** — lint, typecheck, migrate, seed, unit + integration tests, build, then E2E on a
+  mobile viewport.
+
+### Deliberately not built
+
+Library, transport, hostel, payroll and biometric hardware modules. Every competitor in
+this market bloats into those and ships a mediocre everything.
+
+---
+
+## Commands
+
+| Command | |
+| --- | --- |
+| `npm run dev` | Development server |
+| `npm run build` / `npm start` | Production build and serve |
+| `npm run lint` / `npm run typecheck` | Static checks |
+| `npm test` | Unit and integration tests (needs Postgres) |
+| `npm run test:e2e` | Playwright, mobile and desktop viewports |
+| `npm run db:migrate` | Create and apply a migration |
+| `npm run db:seed` | Rebuild the demo tenant |
+| `npm run db:studio` | Prisma Studio |
+
+Where Chromium is provisioned outside Playwright (locked-down CI images), point
+`PLAYWRIGHT_CHROMIUM_PATH` at the binary.
+
+---
+
+## Testing
+
+| Layer | Tool | What it covers |
+| --- | --- | --- |
+| Unit | Vitest | Grading, fee arithmetic, attendance percentages and **timetable clash logic** — the four the spec requires to be near 100%, because wrong answers there are invisible and expensive |
+| Integration | Vitest + real Postgres | Tenancy enforcement, permission boundaries, the seed's own invariants |
+| E2E | Playwright | Demo-script flows on a mobile viewport |
+
+Tests run against a real database, never a mock. A tenancy guard tested against a fake
+client would prove nothing.
+
+---
+
+## Security and data protection
+
+This system holds minors' names, photographs, home addresses, guardian CNICs, academic
+records and family financial information.
+
+Implemented in M0: argon2id hashing, Zod validation on every server input, rate limiting and
+account lockout on auth, security headers including HSTS, no student PII in URLs, an audit
+log model on every sensitive mutation, and an impersonation model that records actor, target
+and reason and drives a persistent UI banner.
+
+Scheduled for M6: the full security review, encryption at rest, the backup and restore
+drill, and the per-role 403 endpoint matrix. Do not go live at a school before those pass.
+
+## Licensing note on past papers
+
+CAIE and Pearson own their papers. Volt ships the uploader, the taxonomy and the metadata —
+each school uploads its own copies into its own tenant storage. Take legal advice before
+marketing a preloaded paper library as a Volt feature.

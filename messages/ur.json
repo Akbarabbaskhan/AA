@@ -1,0 +1,94 @@
+{
+  "app": {
+    "name": "وولٹ",
+    "tagline": "اسکول انتظام اور طلبہ پورٹل"
+  },
+  "nav": {
+    "dashboard": "ڈیش بورڈ",
+    "timetable": "ٹائم ٹیبل",
+    "attendance": "حاضری",
+    "results": "نتائج",
+    "papers": "پرانے پرچے",
+    "assignments": "اسائنمنٹس",
+    "societies": "سوسائٹیز",
+    "careers": "کیریئر",
+    "marks": "نمبر",
+    "quizzes": "کوئز",
+    "resources": "مواد",
+    "remarks": "ریمارکس",
+    "students": "طلبہ",
+    "staff": "عملہ",
+    "exams": "امتحانات",
+    "fees": "فیس",
+    "announcements": "اعلانات",
+    "reports": "رپورٹس",
+    "settings": "ترتیبات",
+    "children": "میرے بچے",
+    "more": "مزید"
+  },
+  "auth": {
+    "signIn": "سائن ان",
+    "signOut": "سائن آؤٹ",
+    "identifier": "فون نمبر یا ای میل",
+    "identifierHint": "زیادہ تر والدین فون نمبر سے سائن ان کرتے ہیں",
+    "password": "پاس ورڈ",
+    "forgotPassword": "پاس ورڈ بھول گئے؟",
+    "signingIn": "سائن ان ہو رہا ہے…",
+    "welcome": "خوش آمدید",
+    "errors": {
+      "invalidCredentials": "فون نمبر یا پاس ورڈ درست نہیں ہے۔",
+      "accountLocked": "بہت زیادہ کوششیں۔ پندرہ منٹ بعد دوبارہ کوشش کریں۔",
+      "unknownSchool": "یہ اسکول نہیں مل سکا۔",
+      "unexpected": "کچھ غلط ہو گیا۔ دوبارہ کوشش کریں۔"
+    }
+  },
+  "roles": {
+    "STUDENT": "طالب علم",
+    "PARENT": "والدین",
+    "TEACHER": "استاد",
+    "HOD": "سربراہ شعبہ",
+    "ADMIN": "کوآرڈینیٹر",
+    "BURSAR": "اکاؤنٹس",
+    "SUPERADMIN": "وولٹ عملہ"
+  },
+  "roleSwitcher": {
+    "label": "بطور",
+    "switch": "کردار تبدیل کریں"
+  },
+  "impersonation": {
+    "banner": "{actor} نے {target} کے طور پر سائن ان کیا ہے۔ ہر عمل محفوظ کیا جا رہا ہے۔",
+    "end": "سیشن ختم کریں"
+  },
+  "states": {
+    "loading": "لوڈ ہو رہا ہے",
+    "emptyTitle": "ابھی یہاں کچھ نہیں",
+    "errorTitle": "لوڈ نہیں ہو سکا",
+    "errorBody": "اپنا انٹرنیٹ دیکھ کر دوبارہ کوشش کریں۔",
+    "retry": "دوبارہ کوشش کریں",
+    "offline": "آف لائن",
+    "pendingSync": "{count, plural, =0 {سب محفوظ ہے} one {ایک تبدیلی باقی ہے} other {# تبدیلیاں باقی ہیں}}"
+  },
+  "theme": {
+    "light": "روشن",
+    "dark": "تاریک",
+    "system": "سسٹم"
+  },
+  "common": {
+    "cancel": "منسوخ",
+    "save": "محفوظ کریں",
+    "search": "تلاش",
+    "today": "آج",
+    "language": "زبان"
+  },
+  "dashboard": {
+    "students": "طلبہ",
+    "staff": "عملہ",
+    "sections": "سیکشنز",
+    "timetabledPeriods": "شیڈول شدہ پیریڈز",
+    "glanceLabel": "کیمپس ایک نظر میں",
+    "structure": "{subjects, plural, one {# مضمون} other {# مضامین}}، {programmes, plural, one {# پروگرام} other {# پروگرام}} اور {departments, plural, one {# شعبہ} other {# شعبے}}",
+    "noAcademicYear": "تعلیمی سال مقرر نہیں",
+    "foundationTitle": "حاضری کا ماڈیول M1 میں آئے گا",
+    "foundationBody": "رجسٹر، آف لائن قطار اور ڈیش بورڈز اسی بنیاد پر بنیں گے۔ اوپر دیا گیا ہر عدد ٹینینٹ کے دائرے میں براہِ راست ڈیٹابیس سے آیا ہے۔"
+  }
+}

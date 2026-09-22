@@ -1,0 +1,41 @@
+{
+  "id": "lgs",
+  "displayName": "Lahore Grammar School",
+  "publicUseApproved": false,
+  "light": {
+    "brandPrimary": "#14532D",
+    "brandOnPrimary": "#FFFFFF",
+    "accent": "#15803D",
+    "accentOn": "#FFFFFF",
+    "bg": "#FFFFFF",
+    "surface": "#FAFAF9",
+    "surfaceRaised": "#FFFFFF",
+    "textPrimary": "#0C0A09",
+    "textSecondary": "#57534E",
+    "textTertiary": "#6B6B75",
+    "borderSubtle": "#E7E5E4",
+    "borderStrong": "#D6D3D1",
+    "success": "#15803D",
+    "warning": "#A16207",
+    "danger": "#B91C1C",
+    "info": "#1D4ED8"
+  },
+  "dark": {
+    "brandPrimary": "#86EFAC",
+    "brandOnPrimary": "#0C0A09",
+    "accent": "#86EFAC",
+    "accentOn": "#0A0A0A",
+    "bg": "#0A0A0A",
+    "surface": "#141413",
+    "surfaceRaised": "#1C1C1A",
+    "textPrimary": "#FAFAF9",
+    "textSecondary": "#B4B4AD",
+    "textTertiary": "#94948E",
+    "borderSubtle": "#292524",
+    "borderStrong": "#44403C",
+    "success": "#4ADE80",
+    "warning": "#FBBF24",
+    "danger": "#FCA5A5",
+    "info": "#93C5FD"
+  }
+}

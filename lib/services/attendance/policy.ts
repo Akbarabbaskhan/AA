@@ -177,12 +177,24 @@ export function isLocked(
  * Two teachers — or one teacher on two devices — can both mark the same period while
  * offline. The first person to actually stand in front of the class wins, which is the one
  * whose `markedAt` is earliest, regardless of which device reconnected first.
+ *
+ * One exception, and it matters: a register re-submitted from the *same device* is a
+ * correction, not a race. Applying earliest-wins to it silently discards a teacher's own
+ * fix — they retype the register, are told it saved, and the old marks stay. There is no
+ * second party to lose to, so the correction applies.
  */
 export function shouldOverwrite(
-  existing: { markedAt: Date | null } | null,
+  existing: { markedAt: Date | null; deviceId?: string | null } | null,
   incomingMarkedAt: Date,
+  incomingDeviceId?: string | null,
 ): boolean {
   if (!existing) return true;
   if (!existing.markedAt) return true;
+
+  // Same device re-marking: a correction from the person who marked it.
+  if (incomingDeviceId && existing.deviceId && incomingDeviceId === existing.deviceId) {
+    return true;
+  }
+
   return incomingMarkedAt.getTime() < existing.markedAt.getTime();
 }

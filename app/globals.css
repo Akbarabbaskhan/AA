@@ -78,6 +78,22 @@
 }
 
 @layer components {
+  /*
+   * The table view behind every chart. Present for screen readers and for anyone who
+   * wants the numbers rather than the picture, without taking up space.
+   */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
   /* Skeletons match the final layout rather than covering the page with a spinner. */
   .skeleton {
     background-color: var(--border-subtle);

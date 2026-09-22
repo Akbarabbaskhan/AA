@@ -62,6 +62,33 @@ export function hasRole(actor: Actor, role: RoleName): boolean {
   return actor.roles.includes(role);
 }
 
+/**
+ * Whether the actor may read a whole section's marks — a register of everyone's results,
+ * not their own.
+ *
+ * Deliberately excludes `marks.read.own` and `marks.read.children`. Those are permission to
+ * see one person's results, and a student holds the first of them: counting it here would
+ * let any student enrolled in a section open that section's marks grid and read every
+ * classmate's marks, which is exactly what "students must never be able to read another
+ * student's marks through any endpoint" forbids.
+ */
+export function canReadSectionMarks(actor: Actor): boolean {
+  return (
+    can(actor, 'marks.read.section') ||
+    can(actor, 'marks.read.department') ||
+    can(actor, 'marks.read.school')
+  );
+}
+
+/** The same distinction for attendance: a whole register, not one student's record. */
+export function canReadSectionAttendance(actor: Actor): boolean {
+  return (
+    can(actor, 'attendance.read.section') ||
+    can(actor, 'attendance.read.department') ||
+    can(actor, 'attendance.read.school')
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Row-level scope
 // ---------------------------------------------------------------------------

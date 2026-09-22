@@ -35,6 +35,7 @@ export function OfflineIndicator({ className }: { className?: string }) {
   const online = useOnlineStatus();
   const [pending, setPending] = useState(0);
   const [syncing, setSyncing] = useState(false);
+  const [superseded, setSuperseded] = useState(0);
 
   const refresh = useCallback(async () => {
     try {
@@ -48,7 +49,8 @@ export function OfflineIndicator({ className }: { className?: string }) {
     if (syncing) return;
     setSyncing(true);
     try {
-      await drainQueue();
+      const outcome = await drainQueue();
+      if (outcome.superseded > 0) setSuperseded((current) => current + outcome.superseded);
     } catch {
       // Still offline, or the request failed. The queue keeps everything.
     } finally {
@@ -71,7 +73,18 @@ export function OfflineIndicator({ className }: { className?: string }) {
     void sync();
   }, [online, sync]);
 
-  if (online && pending === 0) return null;
+  if (online && pending === 0 && superseded === 0) return null;
+
+  if (online && pending === 0 && superseded > 0) {
+    return (
+      <p
+        role="alert"
+        className={cn('rounded-card bg-[var(--warning)] px-2 py-1 text-small text-[var(--brand-on-primary)]', className)}
+      >
+        {t('superseded', { count: superseded })}
+      </p>
+    );
+  }
 
   return (
     <div

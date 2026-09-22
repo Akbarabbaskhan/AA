@@ -3,7 +3,7 @@
 A multi-tenant school ERP and student portal for A Level and O Level campuses in Pakistan.
 
 This repository implements the Volt Product & Engineering Spec. It is built milestone by
-milestone; **M0 (Foundation) and M1 (Attendance core) are complete**. See
+milestone; **M0 (Foundation), M1 (Attendance core) and M2 (Academics) are complete**. See
 [Milestone status](#milestone-status).
 
 Three rules from the spec govern everything here:
@@ -180,8 +180,15 @@ patterns. Mondays run 89.4% against 92.7% on other days, the day before a holida
 86.1%, and about fifty students are chronic absentees who keep reappearing on the
 defaulters list. No sessions exist on Sundays or holidays.
 
-Seed data keeps growing with each milestone: M2 adds three exam series, M3 past papers and
-quiz attempts, M4 a full fee cycle.
+**M2 added three exam series** — 2,493 papers and 71,469 marks, distributed to a real bell
+curve rather than a uniform spread, drifting upward across the year so the grade-trend chart
+has a trend in it. The two older series are published through the real publication service
+(4,000 result cards), so every analytics screen has data the moment the app opens; the most
+recent mocks are left with marks entered but unpublished, which is what the demo publishes
+live in front of the principal.
+
+Seed data keeps growing with each milestone: M3 adds past papers and quiz attempts, M4 a
+full fee cycle.
 
 ---
 
@@ -191,8 +198,8 @@ quiz attempts, M4 a full fee cycle.
 | --- | --- | --- |
 | **M0 Foundation** | Repo, CI, Docker, Prisma schema, auth, roles and permissions, theming and design system, app shell, seed with 2,000 students | **Complete** |
 | **M1 Attendance core** | Bulk import with column mapping, three-axis timetable clash detection, offline attendance marking, attendance dashboards | **Complete** |
-| M2 Academics | Exam series, component weighting, marks entry grid, moderation, result card PDFs | Next |
-| M3 Learning | Past paper vault, practice engine, quiz engine, assignments, resources, doubt threads | |
+| **M2 Academics** | Exam series, component weighting, marks entry grid, moderation, publication, result card PDFs, student and teacher analytics | **Complete** |
+| M3 Learning | Past paper vault, practice engine, quiz engine, assignments, resources, doubt threads | Next |
 | M4 Fees and parents | Invoicing, vouchers, reconciliation, parent portal in Urdu, WhatsApp and SMS | |
 | M5 Student life | Societies, events, effort leaderboards, careers, digital ID | |
 | M6 Harden and pilot | Performance pass, security review, backup drill, audit log UI, year-end rollover | |
@@ -271,6 +278,69 @@ in JavaScript. It now aggregates in Postgres and runs in 62ms. That query is raw
 bypasses the tenancy extension, so it binds `school_id` explicitly; that is why there are
 so few raw queries in this codebase.
 
+### What M2 delivers
+
+The module the spec says differentiates Volt in a demo, because every competitor treats
+A Level like a percentage-and-position system.
+
+**Component weighting done properly.** A subject grade is computed from weighted component
+scores, never from an average of raw marks. Chemistry 9701's published weights are
+15/23/38/23 — which total 99, not 100 — so the aggregate normalises by the weight that
+actually contributed rather than assuming a hundred. An absent paper is excluded from both
+sides rather than scored zero, and the card names what was missed.
+
+**Marks entry** is a spreadsheet grid: students down, one paper across, driven entirely
+from the keyboard. Enter and the arrows move between students, `A` marks a student absent,
+and a column pasted from Excel fills downward in roll-number order. Marks above the paper
+total are refused, outliers more than three standard deviations from the class mean are
+flagged as a warning rather than a block, and every entry autosaves.
+
+**Moderation** keeps the teacher's original mark on the row as well as in the audit log, so
+a result card can show that a mark was moderated without a query across the audit table. A
+second moderation pass never overwrites the original.
+
+**Publication** happens for the whole series at once — staggered visibility causes
+complaints — and freezes an immutable snapshot per student. Everything afterwards reads
+that snapshot, so a card reprinted in three years is the one the family received even if a
+grading scale has been edited since. Unpublishing exists for the broken-paper case and is
+recorded loudly.
+
+**Result cards** render server-side with no browser: one A4 page per student carrying the
+component breakdown, subject grade, class average, attendance for the term, remarks the
+school marked visible to parents, and signature blocks.
+
+**Analytics**: the grade trend per subject (small multiples, one series each, with the
+boundary bands drawn behind), the paper costing the most in weighted grade points, a
+teacher-set and a system-suggested predicted grade side by side and clearly labelled, a
+section's distribution against its year group, and the students who dropped two grade bands
+or more since the last series.
+
+Class position is a percentile **band** shown only to the student — never a ranked list.
+
+### Performance, measured
+
+Against the seeded 2,000 students, 583,166 attendance records and 71,469 marks:
+
+| Endpoint | Budget | Measured (p95) |
+| --- | --- | --- |
+| Attendance register load | < 1s | 21ms |
+| Student list | < 300ms | 18ms |
+| Student attendance (180 days) | < 300ms | 159ms |
+| Daily attendance report | < 300ms | 62ms |
+| Teacher compliance | < 300ms | 56ms |
+| Marks grid | < 300ms | 31ms |
+| Student results (3 series) | < 300ms | 23ms |
+| Single result card PDF | < 3s | 66ms |
+| 200 result cards, merged | < 60s | 8s |
+| Publishing a series for 2,000 students | — | 2.5s |
+| 200 concurrent register reads | the 08:00 peak | all 200 OK, 1.6s wall |
+
+Two budgets were missed and fixed rather than renegotiated. The daily report started at
+389ms because it counted four thousand records in JavaScript; it now aggregates in Postgres
+at 62ms. The seed twice crossed its 60-second limit as attendance and exam data landed;
+both writes moved from `createMany` to set-based `unnest` inserts, which is roughly an
+order of magnitude faster.
+
 ### Deliberately not built
 
 Library, transport, hostel, payroll and biometric hardware modules. Every competitor in
@@ -300,8 +370,8 @@ Where Chromium is provisioned outside Playwright (locked-down CI images), point
 
 | Layer | Tool | What it covers |
 | --- | --- | --- |
-| Unit | Vitest | Attendance percentages, the lock window, offline conflict resolution and **timetable clash logic** — among the four the spec requires to be near 100%, because wrong answers there are invisible and expensive. Plus CSV parsing, column mapping and import date handling |
-| Integration | Vitest + real Postgres | Tenancy enforcement, permission boundaries, the register and offline sync, the import acceptance criterion, the seed's own invariants |
+| Unit | Vitest | **Grading** (component weighting, boundary arithmetic, class statistics, outliers, percentile), **attendance percentages**, the lock window, offline conflict resolution and **timetable clash logic** — the four the spec requires to be near 100%, because wrong answers there are invisible and expensive. Plus CSV parsing, column mapping and import date handling |
+| Integration | Vitest + real Postgres | Tenancy enforcement, permission boundaries, the register and offline sync, the import acceptance criterion, the full exam cycle from setup to PDF, the seed's own invariants |
 | E2E | Playwright | The demo-script flows on a mobile viewport, including marking a register in airplane mode and watching it sync, and a per-role 403 matrix over the real HTTP stack |
 
 Both suites run against a single shared database, so both are configured to run
@@ -321,6 +391,13 @@ Implemented in M0: argon2id hashing, Zod validation on every server input, rate 
 account lockout on auth, security headers including HSTS, no student PII in URLs, an audit
 log model on every sensitive mutation, and an impersonation model that records actor, target
 and reason and drives a persistent UI banner.
+
+M2 closed a real hole found by its own tests: the helper that answered "may this actor read
+marks?" counted `marks.read.own`, which a student holds — so a student enrolled in a section
+could open that section's marks grid and read every classmate's marks. The same shape of
+mistake existed on the attendance register page. Reading a whole section is now a distinct
+capability check (`canReadSectionMarks` / `canReadSectionAttendance`) that deliberately
+excludes "own" and "children", pinned by unit tests and asserted end to end.
 
 M1 added the **per-role 403 matrix** (`tests/e2e/permissions.spec.ts`), which drives the
 real HTTP stack: an unauthenticated caller gets 401 everywhere, a student is refused every

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { RoleName } from '@prisma/client';
 import {
+  canReadSectionMarks,
+  canReadSectionAttendance,
   CAPABILITIES,
   FINANCE_ONLY_FORBIDDEN,
   ROLE_CAPABILITIES,
@@ -113,6 +115,42 @@ describe('permissions: the capability matrix', () => {
     const student = actor({ roles: ['STUDENT'] });
     expect(() => requireCapability(student, 'marks.enter')).toThrow(ForbiddenError);
     expect(() => requireCapability(student, 'attempt.create')).not.toThrow();
+  });
+});
+
+describe('permissions: reading a whole section', () => {
+  it('does not let a student read a section\'s marks or register', () => {
+    /*
+     * A student is legitimately enrolled in the section, so the row-level check alone
+     * would let them through. "Own" is permission to see one person's results, never a
+     * register of everyone's — this is the distinction that keeps a student out of the
+     * marks grid for their own class.
+     */
+    const student = actor({ roles: ['STUDENT'], studentId: 'stu-1', enrolledSectionIds: ['sec-a'] });
+    expect(can(student, 'marks.read.own')).toBe(true);
+    expect(canReadSectionMarks(student)).toBe(false);
+    expect(canReadSectionAttendance(student)).toBe(false);
+  });
+
+  it('does not let a parent read a section\'s marks or register', () => {
+    const parent = actor({ roles: ['PARENT'], childStudentIds: ['stu-1'] });
+    expect(can(parent, 'marks.read.children')).toBe(true);
+    expect(canReadSectionMarks(parent)).toBe(false);
+    expect(canReadSectionAttendance(parent)).toBe(false);
+  });
+
+  it('lets staff read a section', () => {
+    for (const role of ['TEACHER', 'HOD', 'ADMIN'] as const) {
+      const staff = actor({ roles: [role] });
+      expect(canReadSectionMarks(staff), `${role} should read section marks`).toBe(true);
+      expect(canReadSectionAttendance(staff), `${role} should read a register`).toBe(true);
+    }
+  });
+
+  it('keeps the bursar out of both', () => {
+    const bursar = actor({ roles: ['BURSAR'] });
+    expect(canReadSectionMarks(bursar)).toBe(false);
+    expect(canReadSectionAttendance(bursar)).toBe(false);
   });
 });
 

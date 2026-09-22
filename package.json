@@ -2,7 +2,7 @@
   "name": "volt-lgs",
   "version": "0.1.0",
   "private": true,
-  "description": "Volt \u2014 multi-tenant school ERP and student portal for A Level and O Level campuses in Pakistan.",
+  "description": "Volt — multi-tenant school ERP and student portal for A Level and O Level campuses in Pakistan.",
   "engines": {
     "node": ">=20.11"
   },
@@ -36,6 +36,7 @@
     "@radix-ui/react-slot": "^1.1.0",
     "@radix-ui/react-tabs": "^1.1.1",
     "@radix-ui/react-toast": "^1.2.2",
+    "@react-pdf/renderer": "^4.9.0",
     "argon2": "^0.41.1",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",

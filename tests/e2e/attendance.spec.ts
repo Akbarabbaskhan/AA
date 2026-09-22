@@ -85,10 +85,26 @@ test.describe('offline marking — the moment the demo turns on', () => {
   test('accepts marks in airplane mode and syncs them on reconnect', async ({ page, context }) => {
     await signIn(page, 'emp-0001@volt-demo.test');
     await page.goto('/attendance');
-    await page.getByRole('link').filter({ hasText: /Period/ }).first().click();
-    await expect(page.getByRole('button', { name: /Submit register/i })).toBeVisible();
+    const firstClass = page.getByRole('link').filter({ hasText: /Period/ }).first();
+    await expect(firstClass).toBeVisible();
+    const href = (await firstClass.getAttribute('href'))!;
 
-    const registerUrl = page.url();
+    /*
+     * A register nobody has marked yet.
+     *
+     * Today's is already marked — by the seed, and by the tests above. Re-marking it
+     * offline is the case the spec's "favour the earliest timestamp" rule deliberately
+     * discards, so asserting that the later marks win would be asserting against the
+     * product. The offline queue is what is under test here, not conflict resolution,
+     * which has its own unit tests.
+     */
+    const [, , sectionId, date, period] = href.split('/');
+    const tomorrow = new Date(`${date}T00:00:00.000Z`);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    const registerUrl = `/attendance/${sectionId}/${tomorrow.toISOString().slice(0, 10)}/${period}`;
+
+    await page.goto(registerUrl);
+    await expect(page.getByRole('button', { name: /Submit register/i })).toBeVisible();
 
     // Airplane mode.
     await context.setOffline(true);
@@ -118,7 +134,15 @@ test.describe('offline marking — the moment the demo turns on', () => {
   }) => {
     await signIn(page, 'emp-0001@volt-demo.test');
     await page.goto('/attendance');
-    await page.getByRole('link').filter({ hasText: /Period/ }).last().click();
+    const lastClass = page.getByRole('link').filter({ hasText: /Period/ }).last();
+    await expect(lastClass).toBeVisible();
+    const href = (await lastClass.getAttribute('href'))!;
+
+    // An unmarked register, for the same reason as above.
+    const [, , sectionId, date, period] = href.split('/');
+    const ahead = new Date(`${date}T00:00:00.000Z`);
+    ahead.setUTCDate(ahead.getUTCDate() + 2);
+    await page.goto(`/attendance/${sectionId}/${ahead.toISOString().slice(0, 10)}/${period}`);
     await expect(page.getByRole('button', { name: /Submit register/i })).toBeVisible();
 
     await context.setOffline(true);

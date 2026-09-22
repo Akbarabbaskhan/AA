@@ -7,6 +7,7 @@ import { getSchoolSettings } from '@/lib/services/school-settings';
 import {
   assertCanAccessSection,
   canMarkSection,
+  canReadSectionAttendance,
   ForbiddenError,
   hasRole,
   type Actor,
@@ -85,6 +86,12 @@ export async function getRegister(
   actor: Actor,
   input: { sectionId: string; date: string; periodIndex: number },
 ): Promise<Register> {
+  /*
+   * A capability check before the row check, for the same reason as the marks grid: a
+   * student is legitimately "in" this section, so `assertCanAccessSection` alone would hand
+   * them a register listing every classmate's attendance.
+   */
+  if (!canReadSectionAttendance(actor)) throw ApiError.notFound('Register not found');
   assertCanAccessSection(actor, input.sectionId);
 
   const [settings, period, section] = await Promise.all([
@@ -254,11 +261,14 @@ export async function saveRegister(
       date: toDateOnly(input.date),
       periodIndex: input.periodIndex,
     },
-    select: { id: true, markedAt: true },
+    select: { id: true, markedAt: true, deviceId: true },
   });
 
-  // Two devices can mark the same period offline; the earliest wins.
-  const overwrite = isOfflineReplay ? shouldOverwrite(existingSession, markedAt) : true;
+  // Two devices can mark the same period offline; the earliest wins. A re-submission from
+  // the same device is a correction, not a race — see shouldOverwrite.
+  const overwrite = isOfflineReplay
+    ? shouldOverwrite(existingSession, markedAt, input.deviceId ?? null)
+    : true;
 
   const session = existingSession
     ? await prisma.attendanceSession.update({

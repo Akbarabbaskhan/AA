@@ -2,6 +2,9 @@ import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
+  // The result card is authored as JSX. Next compiles it with the automatic runtime; the
+  // test runner has to be told to do the same, or every render throws "React is not defined".
+  esbuild: { jsx: 'automatic' },
   test: {
     environment: 'node',
     include: ['tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],

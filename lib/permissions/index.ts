@@ -10,6 +10,8 @@ export {
   can,
   capabilitiesOf,
   hasRole,
+  canReadSectionMarks,
+  canReadSectionAttendance,
   requireCapability,
   canAccessStudent,
   assertCanAccessStudent,

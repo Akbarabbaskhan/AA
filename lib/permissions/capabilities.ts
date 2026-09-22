@@ -197,6 +197,9 @@ const ADMIN: readonly Capability[] = [
   'attendance.mark',
   'attendance.amend',
   'marks.read.school',
+  // A coordinator enters marks when a teacher is away, and already holds the stronger
+  // `marks.moderate` — withholding entry only forces them to moderate instead.
+  'marks.enter',
   'marks.moderate',
   'exam.manage',
   'exam.publish',

@@ -223,6 +223,25 @@ describe('offline conflict resolution', () => {
   it('does not overwrite on an exact tie', () => {
     expect(shouldOverwrite({ markedAt: earlier }, new Date(earlier))).toBe(false);
   });
+
+  it('treats a re-submission from the same device as a correction, not a race', () => {
+    /*
+     * A teacher who re-marks their own register offline is fixing it. Applying
+     * earliest-wins here silently discards their fix: they retype the register, are told
+     * it saved, and the old marks stay.
+     */
+    expect(shouldOverwrite({ markedAt: earlier, deviceId: 'pixel-a' }, later, 'pixel-a')).toBe(true);
+  });
+
+  it('still favours the earliest mark when the other device is somebody else\'s', () => {
+    expect(shouldOverwrite({ markedAt: earlier, deviceId: 'pixel-a' }, later, 'pixel-b')).toBe(false);
+    expect(shouldOverwrite({ markedAt: later, deviceId: 'pixel-a' }, earlier, 'pixel-b')).toBe(true);
+  });
+
+  it('falls back to earliest-wins when either device is unknown', () => {
+    expect(shouldOverwrite({ markedAt: earlier, deviceId: null }, later, 'pixel-a')).toBe(false);
+    expect(shouldOverwrite({ markedAt: earlier, deviceId: 'pixel-a' }, later)).toBe(false);
+  });
 });
 
 describe('school settings', () => {

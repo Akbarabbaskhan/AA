@@ -109,6 +109,20 @@ describe('the register', () => {
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
+  it('refuses a student the register for their own class', async () => {
+    // They are enrolled in it, so the row check passes; the capability check is what
+    // stops them reading every classmate's attendance.
+    await expect(
+      asActor(student, () =>
+        getRegister(student, {
+          sectionId: student.enrolledSectionIds[0]!,
+          date: today,
+          periodIndex: 1,
+        }),
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
   it('refuses a student trying to open a register at all', async () => {
     await expect(
       asActor(student, () => saveRegister(student, {

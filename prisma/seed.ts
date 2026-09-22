@@ -15,8 +15,12 @@
 import { randomUUID } from 'node:crypto';
 import { PrismaClient, type Gender, type Prisma, type RoleName } from '@prisma/client';
 import { hashPassword } from '../lib/auth/password';
+import { prisma as scopedPrisma, withTenant } from '../lib/db';
+import { publishExamSeries } from '../lib/services/exams/publish';
+import type { Actor } from '../lib/permissions';
 import { Rng } from './seed/random';
 import { seedAttendance, type SeedSection, type SeedSlot } from './seed/attendance';
+import { seedExams, type ExamSeedSection } from './seed/exams';
 import {
   DESIGNATIONS,
   FEMALE_FIRST_NAMES,
@@ -774,6 +778,48 @@ async function main(): Promise<void> {
   });
 
   // ---------------------------------------------------------------------------
+  // Exam series
+  //
+  // Three completed series with marks for every enrolled student, spread across the year so
+  // the grade-trend chart has a trend in it and the "dropped two bands" report has someone
+  // to report on.
+  // ---------------------------------------------------------------------------
+  const componentRows = await prisma.subjectComponent.findMany({
+    where: { schoolId },
+    select: { id: true, code: true, weightPercent: true, subject: { select: { code: true } } },
+  });
+  const componentIds = new Map(
+    componentRows.map((row) => [
+      `${row.subject.code}:${row.code}`,
+      { id: row.id, weightPercent: row.weightPercent },
+    ]),
+  );
+
+  const examSections: ExamSeedSection[] = sectionPlans
+    .filter((section) => section.students.length > 0)
+    .map((section) => ({
+      id: section.id,
+      subjectCode: section.subjectCode,
+      studentIds: section.students.map((student) => student.studentId),
+    }));
+
+  // Dated backwards from today so every series sits in the past and can be published.
+  const examSeriesDates = [
+    { name: `June Tests ${currentYearStartYear}`, type: 'TEST' as const, date: shiftDays(todayString, -120) },
+    { name: `August Mid-Terms ${currentYearStartYear}`, type: 'MID_TERM' as const, date: shiftDays(todayString, -60) },
+    { name: `September Mocks ${currentYearStartYear}`, type: 'MOCK' as const, date: shiftDays(todayString, -14) },
+  ];
+
+  const exams = await seedExams(prisma, rng, {
+    schoolId,
+    academicYearId: currentYear.id,
+    componentIds,
+    sections: examSections,
+    seriesDates: examSeriesDates,
+    defaultScaleBands: GRADING_SCALES[0]!.bands,
+  });
+
+  // ---------------------------------------------------------------------------
   // Demo logins, one per role, with documented credentials.
   // ---------------------------------------------------------------------------
   const demoAccounts: { role: RoleName; name: string; phone: string; email: string }[] = [
@@ -802,6 +848,46 @@ async function main(): Promise<void> {
   const demoStudent = plans[0]!;
   const demoParent = guardianPlans[0]!;
 
+  /*
+   * The two older series are published, so a student's grade-trend chart and a teacher's
+   * distribution charts have something to draw the moment the app opens. The most recent
+   * mocks are left with marks entered but unpublished, which is what the demo publishes
+   * live — the trend gains its third point in front of the principal.
+   *
+   * This runs the real publication service rather than a seed-only copy of it, so a bug in
+   * grading or aggregation fails the seed instead of hiding until a demo.
+   */
+  const adminUser = await prisma.user.findFirstOrThrow({
+    where: { schoolId, email: 'admin@volt-demo.test' },
+    select: { id: true },
+  });
+
+  const publishingActor: Actor = {
+    userId: adminUser.id,
+    schoolId,
+    roles: ['ADMIN'],
+    sectionIds: [],
+    enrolledSectionIds: [],
+    headOfDepartmentIds: [],
+    childStudentIds: [],
+  };
+
+  const toPublish = await prisma.examSeries.findMany({
+    where: { schoolId, academicYearId: currentYear.id },
+    orderBy: { startDate: 'asc' },
+    take: 2,
+    select: { id: true, name: true },
+  });
+
+  let resultCards = 0;
+  for (const series of toPublish) {
+    const published = await withTenant({ schoolId, userId: adminUser.id }, () =>
+      publishExamSeries(publishingActor, series.id),
+    );
+    resultCards += published.resultCards;
+  }
+  await scopedPrisma.$disconnect();
+
   const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
   const counts = {
     students: plans.length,
@@ -814,6 +900,10 @@ async function main(): Promise<void> {
     schoolDays: attendance.schoolDays,
     attendanceSessions: attendance.sessions,
     attendanceRecords: attendance.records,
+    examSeries: exams.series,
+    assessments: exams.assessments,
+    marks: exams.marks,
+    resultCards,
   };
 
   console.log('\nSeeded:');
@@ -824,6 +914,11 @@ async function main(): Promise<void> {
   console.log(
     `  attendance       ${attendance.attendedPercent.toFixed(1)}% average, ` +
       `${attendance.chronicAbsentees} chronic absentees, ${historyStart} to ${historyEnd}`,
+  );
+  console.log(`  exam marks       ${exams.meanPercent.toFixed(1)}% mean across 3 series`);
+  console.log(
+    `  published        ${toPublish.map((series) => series.name).join(', ')} ` +
+      `(the latest series is left unpublished for the demo)`,
   );
 
   console.log('\nDemo logins (password for every account: ' + DEMO_PASSWORD + '):');

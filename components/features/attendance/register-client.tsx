@@ -135,6 +135,13 @@ export function RegisterClient({ initial }: { initial: Register }) {
     // The moment the teacher pressed submit, which is the period's timestamp — not
     // whenever this eventually reaches the server.
     const markedAt = new Date().toISOString();
+    /*
+     * Sent on the online path too, not only when queueing. The server uses it to tell a
+     * correction from this phone apart from a second teacher's device: without it, a
+     * register marked online and then corrected offline from the same phone loses to its
+     * own earlier timestamp and the fix is silently dropped.
+     */
+    const deviceId = await getDeviceId();
 
     try {
       if (!online) throw new Error('offline');
@@ -147,6 +154,7 @@ export function RegisterClient({ initial }: { initial: Register }) {
           date: register.date,
           periodIndex: register.periodIndex,
           markedAt,
+          deviceId,
           marks,
         }),
       });
@@ -160,7 +168,6 @@ export function RegisterClient({ initial }: { initial: Register }) {
        * No signal, or the request failed. Queue it and tell the teacher plainly that their
        * work is safe — this is the moment the product either earns trust or loses it.
        */
-      const deviceId = await getDeviceId();
       await enqueueRegister({
         id: globalThis.crypto?.randomUUID?.() ?? `${register.sectionId}-${Date.now()}`,
         sectionId: register.sectionId,

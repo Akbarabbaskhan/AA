@@ -3,7 +3,8 @@
 A multi-tenant school ERP and student portal for A Level and O Level campuses in Pakistan.
 
 This repository implements the Volt Product & Engineering Spec. It is built milestone by
-milestone; **M0 (Foundation) is complete**. See [Milestone status](#milestone-status).
+milestone; **M0 (Foundation) and M1 (Attendance core) are complete**. See
+[Milestone status](#milestone-status).
 
 Three rules from the spec govern everything here:
 
@@ -173,8 +174,14 @@ invariant the scheme rests on — no subject combination takes two subjects from
 That test caught a genuine bug during M0: Biology and Mathematics had been placed in the
 same block while "Pre-medical with Maths" takes both.
 
-Seed data grows with each milestone. M1 adds 180 days of attendance history, M2 three exam
-series, M3 past papers and quiz attempts, M4 a full fee cycle.
+**M1 added the attendance history**: every school day of the current academic year to date
+— 147 days, 20,387 registers and 583,166 records — averaging 91.7% with believable
+patterns. Mondays run 89.4% against 92.7% on other days, the day before a holiday drops to
+86.1%, and about fifty students are chronic absentees who keep reappearing on the
+defaulters list. No sessions exist on Sundays or holidays.
+
+Seed data keeps growing with each milestone: M2 adds three exam series, M3 past papers and
+quiz attempts, M4 a full fee cycle.
 
 ---
 
@@ -183,8 +190,8 @@ series, M3 past papers and quiz attempts, M4 a full fee cycle.
 | Milestone | Ships | Status |
 | --- | --- | --- |
 | **M0 Foundation** | Repo, CI, Docker, Prisma schema, auth, roles and permissions, theming and design system, app shell, seed with 2,000 students | **Complete** |
-| M1 Attendance core | Bulk import, timetable builder with clash detection, offline attendance marking, dashboards | Next |
-| M2 Academics | Exam series, component weighting, marks entry grid, moderation, result card PDFs | |
+| **M1 Attendance core** | Bulk import with column mapping, three-axis timetable clash detection, offline attendance marking, attendance dashboards | **Complete** |
+| M2 Academics | Exam series, component weighting, marks entry grid, moderation, result card PDFs | Next |
 | M3 Learning | Past paper vault, practice engine, quiz engine, assignments, resources, doubt threads | |
 | M4 Fees and parents | Invoicing, vouchers, reconciliation, parent portal in Urdu, WhatsApp and SMS | |
 | M5 Student life | Societies, events, effort leaderboards, careers, digital ID | |
@@ -208,6 +215,61 @@ series, M3 past papers and quiz attempts, M4 a full fee cycle.
   per role, and the three designed list states.
 - **CI** — lint, typecheck, migrate, seed, unit + integration tests, build, then E2E on a
   mobile viewport.
+
+### What M1 delivers
+
+**Attendance** — the feature that sells the product.
+
+- The register opens with every student pre-marked present and their photo alongside their
+  name, so the teacher taps only the absentees. One tap toggles absent; press and hold
+  cycles late and excused. Bulk "all present" / "all absent". The submit button is
+  bottom-anchored, above the tab bar rather than behind it.
+- **Offline-capable.** The register loads from an IndexedDB cache with no connectivity,
+  accepts marks, and queues them. On reconnect the queue drains automatically and the
+  original period timestamp is preserved — not the sync time. The sync endpoint is
+  idempotent on a device-generated batch id and returns per-register results, so a phone
+  that loses signal mid-sync can retry the whole batch safely.
+- **Conflict resolution favours the earliest timestamp** when two devices queued the same
+  period. A teacher's deliberate online correction is not a conflict and always applies.
+- **Registers lock 24 hours after the period ends**, measured from the period in the
+  school's own timezone rather than from submission. After that only a coordinator can
+  amend, the reason is mandatory, and the audit row records before, after, actor and reason.
+- **Period-wise, not daily** — selective absence is the problem schools want solved.
+- Views per audience: a student's calendar heatmap and per-subject percentages, a teacher's
+  section percentages sorted worst-first, a coordinator's campus figure, year-group
+  comparison, absentee list and the register-not-marked list, plus a teacher marking
+  compliance table.
+
+**Bulk import** — the reason schools stall on switching.
+
+Upload a CSV, confirm the guessed column mapping, see the first twenty rows with every
+error flagged inline, then commit and download a CSV report explaining every rejected row.
+Dedupes on admission number, links siblings to the guardian account that already exists,
+and forces a password change at first login. 500 students with guardians and subject
+enrolments import in about 13 seconds.
+
+**Timetable** — three-axis clash detection (teacher, room, student cohort) enforced on
+write, not just previewed: placing a section in a clashing slot is refused with a message
+naming the specific conflict. Plus substitutions, and the read views with the current
+period highlighted.
+
+### Performance, measured
+
+Against the seeded 2,000 students and 583,166 attendance records:
+
+| Endpoint | Budget | Measured (p95) |
+| --- | --- | --- |
+| Attendance register load | < 1s | 21ms |
+| Student list | < 300ms | 18ms |
+| Student attendance (180 days) | < 300ms | 159ms |
+| Daily attendance report | < 300ms | 62ms |
+| Teacher compliance | < 300ms | 56ms |
+| 200 concurrent register reads | the 08:00 peak | all 200 OK, 1.6s wall |
+
+The daily report started at 389ms — over budget — because it counted four thousand records
+in JavaScript. It now aggregates in Postgres and runs in 62ms. That query is raw SQL, which
+bypasses the tenancy extension, so it binds `school_id` explicitly; that is why there are
+so few raw queries in this codebase.
 
 ### Deliberately not built
 
@@ -238,9 +300,12 @@ Where Chromium is provisioned outside Playwright (locked-down CI images), point
 
 | Layer | Tool | What it covers |
 | --- | --- | --- |
-| Unit | Vitest | Grading, fee arithmetic, attendance percentages and **timetable clash logic** — the four the spec requires to be near 100%, because wrong answers there are invisible and expensive |
-| Integration | Vitest + real Postgres | Tenancy enforcement, permission boundaries, the seed's own invariants |
-| E2E | Playwright | Demo-script flows on a mobile viewport |
+| Unit | Vitest | Attendance percentages, the lock window, offline conflict resolution and **timetable clash logic** — among the four the spec requires to be near 100%, because wrong answers there are invisible and expensive. Plus CSV parsing, column mapping and import date handling |
+| Integration | Vitest + real Postgres | Tenancy enforcement, permission boundaries, the register and offline sync, the import acceptance criterion, the seed's own invariants |
+| E2E | Playwright | The demo-script flows on a mobile viewport, including marking a register in airplane mode and watching it sync, and a per-role 403 matrix over the real HTTP stack |
+
+Both suites run against a single shared database, so both are configured to run
+sequentially. Parallel files racing over the same tenant is a flake factory.
 
 Tests run against a real database, never a mock. A tenancy guard tested against a fake
 client would prove nothing.
@@ -257,8 +322,13 @@ account lockout on auth, security headers including HSTS, no student PII in URLs
 log model on every sensitive mutation, and an impersonation model that records actor, target
 and reason and drives a persistent UI banner.
 
-Scheduled for M6: the full security review, encryption at rest, the backup and restore
-drill, and the per-role 403 endpoint matrix. Do not go live at a school before those pass.
+M1 added the **per-role 403 matrix** (`tests/e2e/permissions.spec.ts`), which drives the
+real HTTP stack: an unauthenticated caller gets 401 everywhere, a student is refused every
+staff endpoint and cannot read another student's attendance by id, a teacher cannot reach
+the campus reports or run an import, and a bursar is refused every academic endpoint.
+
+Scheduled for M6: the full security review, encryption at rest, and the backup and restore
+drill. Do not go live at a school before those pass.
 
 ## Licensing note on past papers
 

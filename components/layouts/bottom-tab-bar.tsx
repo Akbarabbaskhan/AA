@@ -21,7 +21,7 @@ export function BottomTabBar({ items }: { items: readonly NavItem[] }) {
       aria-label="Primary"
       className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border-subtle)] bg-[var(--surface-raised)] pb-[env(safe-area-inset-bottom)] desktop:hidden"
     >
-      <ul className="flex">
+      <ul className="flex h-[var(--bottom-nav-height)]">
         {items.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (

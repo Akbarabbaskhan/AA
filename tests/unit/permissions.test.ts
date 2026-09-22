@@ -159,15 +159,28 @@ describe('permissions: row-level scope', () => {
     // The isolation rule has to hold on list and search endpoints too, so it is expressed
     // as a query predicate rather than a post-filter.
     const student = actor({ roles: ['STUDENT'], studentId: 'stu-1' });
-    expect(studentScopeFilter(student)).toEqual({ id: { in: ['stu-1'] } });
+    expect(studentScopeFilter(student)).toEqual({ id: 'stu-1' });
+  });
 
-    const parent = actor({ roles: ['PARENT'], childStudentIds: ['stu-3'] });
-    expect(studentScopeFilter(parent)).toEqual({ id: { in: ['stu-3'] } });
+  it('reduces a list query to the linked children for a parent', () => {
+    const parent = actor({ roles: ['PARENT'], childStudentIds: ['stu-3', 'stu-4'] });
+    expect(studentScopeFilter(parent)).toEqual({ id: { in: ['stu-3', 'stu-4'] } });
+  });
 
-    const admin = actor({ roles: ['ADMIN'] });
-    expect(studentScopeFilter(admin)).toEqual({});
+  it('scopes a teacher to the sections they teach', () => {
+    const teacher = actor({ roles: ['TEACHER'], sectionIds: ['sec-a', 'sec-b'] });
+    expect(studentScopeFilter(teacher)).toEqual({
+      enrolments: { some: { sectionId: { in: ['sec-a', 'sec-b'] }, droppedAt: null } },
+    });
+  });
 
-    // A teacher with no sections resolved matches nothing rather than everything.
+  it('leaves campus-wide roles unfiltered', () => {
+    expect(studentScopeFilter(actor({ roles: ['ADMIN'] }))).toEqual({});
+    expect(studentScopeFilter(actor({ roles: ['BURSAR'] }))).toEqual({});
+  });
+
+  it('matches nothing when no scope resolves, rather than everything', () => {
+    // Getting this default wrong is how a list endpoint leaks a whole school.
     const teacher = actor({ roles: ['TEACHER'] });
     expect(studentScopeFilter(teacher)).toEqual({ id: { in: [] } });
   });

@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaClient, type Gender, type Prisma, type RoleName } from '@prisma/client';
 import { hashPassword } from '../lib/auth/password';
 import { Rng } from './seed/random';
+import { seedAttendance, type SeedSection, type SeedSlot } from './seed/attendance';
 import {
   DESIGNATIONS,
   FEMALE_FIRST_NAMES,
@@ -54,6 +55,13 @@ const STAFF_TARGET = Number(process.env['SEED_STAFF_COUNT'] ?? 150);
  * place in the system where a hash is reused.
  */
 const DEMO_PASSWORD = 'Volt2026!';
+
+/** Overridable so a test can pin the seed to a fixed day. */
+const TODAY = process.env['SEED_TODAY']
+  ? new Date(`${process.env['SEED_TODAY']}T00:00:00.000Z`)
+  : new Date();
+
+const ATTENDANCE_DAY_CAP = Number(process.env['SEED_ATTENDANCE_DAYS'] ?? 180);
 
 const YEAR_GROUPS = [
   { name: 'AS1', order: 1 },
@@ -126,22 +134,44 @@ async function main(): Promise<void> {
   });
   const schoolId = school.id;
 
-  // Two academic years, current and previous — so year-scoping is exercised from day one.
+  /*
+   * Two academic years, current and previous, computed from today rather than hardcoded —
+   * so the demo tenant always has a term and a half of real history behind it whenever the
+   * seed is run, instead of going empty the moment a fixed date passes.
+   *
+   * The demo campus runs an April–March calendar. That is what puts ~150 school days of
+   * attendance behind a September demo; an August–June year seeded in September would have
+   * six weeks of registers and a heatmap with nothing in it.
+   */
+  const today = TODAY;
+  const yearStartMonth = 3; // April, zero-indexed
+  const currentYearStartYear =
+    today.getUTCMonth() >= yearStartMonth ? today.getUTCFullYear() : today.getUTCFullYear() - 1;
+
+  const yearBounds = (startYear: number) => ({
+    start: `${startYear}-04-01`,
+    end: `${startYear + 1}-03-31`,
+    label: `${startYear}–${String(startYear + 1).slice(2)}`,
+  });
+
+  const previousBounds = yearBounds(currentYearStartYear - 1);
+  const currentBounds = yearBounds(currentYearStartYear);
+
   const previousYear = await prisma.academicYear.create({
     data: {
       schoolId,
-      label: '2025–26',
-      startDate: new Date('2025-08-01'),
-      endDate: new Date('2026-06-30'),
+      label: previousBounds.label,
+      startDate: new Date(`${previousBounds.start}T00:00:00.000Z`),
+      endDate: new Date(`${previousBounds.end}T00:00:00.000Z`),
       isCurrent: false,
     },
   });
   const currentYear = await prisma.academicYear.create({
     data: {
       schoolId,
-      label: '2026–27',
-      startDate: new Date('2026-08-01'),
-      endDate: new Date('2027-06-30'),
+      label: currentBounds.label,
+      startDate: new Date(`${currentBounds.start}T00:00:00.000Z`),
+      endDate: new Date(`${currentBounds.end}T00:00:00.000Z`),
       isCurrent: true,
     },
   });
@@ -229,15 +259,31 @@ async function main(): Promise<void> {
   });
   const rooms = await prisma.room.findMany({ where: { schoolId }, orderBy: { name: 'asc' } });
 
+  // Placed inside the academic year's own range, so "excluded from attendance
+  // calculations" is actually exercised by the history below.
+  const holidayCalendar: { monthDay: string; label: string }[] = [
+    { monthDay: '05-01', label: 'Labour Day' },
+    { monthDay: '08-14', label: 'Independence Day' },
+    { monthDay: '09-15', label: 'Eid Milad-un-Nabi' },
+    { monthDay: '11-09', label: 'Iqbal Day' },
+    { monthDay: '12-25', label: 'Quaid-e-Azam Day' },
+    { monthDay: '03-23', label: 'Pakistan Day' },
+  ];
+
+  const holidayDates = holidayCalendar.map(({ monthDay, label }) => {
+    const [month] = monthDay.split('-');
+    // April–March: months from April on belong to the start year, January–March to the next.
+    const year = Number(month) >= 4 ? currentYearStartYear : currentYearStartYear + 1;
+    return { date: `${year}-${monthDay}`, label };
+  });
+
   await prisma.holiday.createMany({
-    data: [
-      { date: new Date('2026-08-14'), label: 'Independence Day' },
-      { date: new Date('2026-09-15'), label: 'Eid Milad-un-Nabi' },
-      { date: new Date('2026-11-09'), label: 'Iqbal Day' },
-      { date: new Date('2026-12-25'), label: 'Quaid-e-Azam Day' },
-      { date: new Date('2027-03-23'), label: 'Pakistan Day' },
-      { date: new Date('2027-05-01'), label: 'Labour Day' },
-    ].map((holiday) => ({ ...holiday, schoolId, academicYearId: currentYear.id })),
+    data: holidayDates.map((holiday) => ({
+      schoolId,
+      academicYearId: currentYear.id,
+      date: new Date(`${holiday.date}T00:00:00.000Z`),
+      label: holiday.label,
+    })),
   });
 
   // ---------------------------------------------------------------------------
@@ -414,8 +460,16 @@ async function main(): Promise<void> {
   };
 
   const sectionPlans: SectionPlan[] = [];
-  // Rooms are allocated per (year group, block) — the unit of concurrency.
+  /*
+   * Rooms are allocated per (year group, block), because that is the unit of concurrency:
+   * distinct rooms within a pair is all the room axis needs.
+   *
+   * Each pair also starts at a different offset in the room list. Without that every block
+   * begins at room 0 and a student's timetable shows all four of their subjects in "Lab 1"
+   * — harmless for clash detection, and instantly wrong to anyone reading the screen.
+   */
   const roomCursor = new Map<string, number>();
+  const roomOffsets = new Map<string, number>();
 
   for (const group of YEAR_GROUPS) {
     for (const subject of SUBJECTS) {
@@ -427,8 +481,12 @@ async function main(): Promise<void> {
         const teacher = teachers[index % teachers.length];
         if (!teacher) throw new Error(`No teacher available for ${subject.code}`);
 
+        if (!roomOffsets.has(blockKey)) {
+          roomOffsets.set(blockKey, (roomOffsets.size * 11) % rooms.length);
+        }
         const cursor = roomCursor.get(blockKey) ?? 0;
-        const room = rooms[cursor % rooms.length];
+        const offset = roomOffsets.get(blockKey) ?? 0;
+        const room = rooms[(offset + cursor) % rooms.length];
         if (!room) throw new Error('No rooms available');
         roomCursor.set(blockKey, cursor + 1);
 
@@ -661,6 +719,61 @@ async function main(): Promise<void> {
   }
 
   // ---------------------------------------------------------------------------
+  // Attendance history
+  //
+  // Every school day of the current academic year up to today, capped at 180. This is what
+  // makes the heatmaps, the defaulters list and the teacher-compliance report show
+  // something real in a demo instead of an empty state.
+  // ---------------------------------------------------------------------------
+  const todayString = TODAY.toISOString().slice(0, 10);
+  const historyEnd = todayString < currentBounds.end ? todayString : currentBounds.end;
+
+  // Walk back from today to find where the capped window starts, counting only the days
+  // that actually have teaching.
+  const holidaySet = new Set(holidayDates.map((holiday) => holiday.date));
+  const shiftDays = (date: string, days: number) => {
+    const instant = new Date(`${date}T00:00:00.000Z`);
+    instant.setUTCDate(instant.getUTCDate() + days);
+    return instant.toISOString().slice(0, 10);
+  };
+
+  let historyStart = historyEnd;
+  let schoolDayBudget = ATTENDANCE_DAY_CAP;
+  while (historyStart > currentBounds.start && schoolDayBudget > 0) {
+    const previous = shiftDays(historyStart, -1);
+    if (previous < currentBounds.start) break;
+    historyStart = previous;
+    const weekday = new Date(`${previous}T00:00:00.000Z`).getUTCDay() || 7;
+    if (weekday !== 7 && !holidaySet.has(previous)) schoolDayBudget -= 1;
+  }
+
+  const seedSections: SeedSection[] = sectionPlans
+    .filter((section) => section.students.length > 0)
+    .map((section) => ({
+      id: section.id,
+      teacherStaffId: section.teacherId,
+      studentIds: section.students.map((student) => student.studentId),
+    }));
+
+  const seedSlots: SeedSlot[] = timetableSlots.map((slot) => ({
+    sectionId: slot.sectionId as string,
+    dayOfWeek: slot.dayOfWeek as number,
+    periodIndex: slot.periodIndex as number,
+    endTime: slot.endTime as string,
+  }));
+
+  const attendance = await seedAttendance(prisma, rng, {
+    schoolId,
+    academicYearId: currentYear.id,
+    from: historyStart,
+    to: historyEnd,
+    holidays: holidaySet,
+    sections: seedSections,
+    slots: seedSlots,
+    lockWindowHours: 24,
+  });
+
+  // ---------------------------------------------------------------------------
   // Demo logins, one per role, with documented credentials.
   // ---------------------------------------------------------------------------
   const demoAccounts: { role: RoleName; name: string; phone: string; email: string }[] = [
@@ -698,6 +811,9 @@ async function main(): Promise<void> {
     sections: sectionPlans.length,
     enrolments: enrolments.length,
     timetableSlots: timetableSlots.length,
+    schoolDays: attendance.schoolDays,
+    attendanceSessions: attendance.sessions,
+    attendanceRecords: attendance.records,
   };
 
   console.log('\nSeeded:');
@@ -705,6 +821,10 @@ async function main(): Promise<void> {
     console.log(`  ${key.padEnd(16)} ${value}`);
   }
   console.log(`  academic years   ${[previousYear.label, currentYear.label].join(', ')}`);
+  console.log(
+    `  attendance       ${attendance.attendedPercent.toFixed(1)}% average, ` +
+      `${attendance.chronicAbsentees} chronic absentees, ${historyStart} to ${historyEnd}`,
+  );
 
   console.log('\nDemo logins (password for every account: ' + DEMO_PASSWORD + '):');
   console.log(`  Coordinator  admin@volt-demo.test    +923001110001`);

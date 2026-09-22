@@ -130,17 +130,38 @@ export function assertCanAccessDepartment(actor: Actor, departmentId: string): v
 }
 
 /**
- * The "students must never read another student's marks through any endpoint, including
- * list endpoints and search" rule, as a query predicate.
+ * The "students must never read another student's marks, remarks, fee status or contact
+ * details through any endpoint, including list endpoints and search" rule, as a query
+ * predicate.
  *
  * Services compose this into their `where` clause so the restriction is applied by the
- * database, not by filtering results after the fact.
+ * database rather than by filtering results after the fact — which is what makes it hold
+ * on list endpoints, on search, and on every paginated page rather than only the first.
+ *
+ * The shape is deliberately Prisma-compatible without importing Prisma: this module is
+ * pure, so the whole matrix stays unit-testable with no database.
  */
-export function studentScopeFilter(actor: Actor): { id?: { in: string[] } } | Record<never, never> {
+export type StudentScopeFilter =
+  | Record<never, never>
+  | { id: string }
+  | { id: { in: string[] } }
+  | { enrolments: { some: { sectionId: { in: string[] }; droppedAt: null } } };
+
+export function studentScopeFilter(actor: Actor): StudentScopeFilter {
+  // Campus-wide roles. A bursar sees that a student exists because they invoice them;
+  // capability checks keep them out of the academic data.
   if (hasRole(actor, 'ADMIN') || hasRole(actor, 'BURSAR')) return {};
-  if (actor.studentId) return { id: { in: [actor.studentId] } };
+
+  if (actor.studentId) return { id: actor.studentId };
   if (actor.childStudentIds.length > 0) return { id: { in: [...actor.childStudentIds] } };
-  // Teachers and HODs are scoped by section membership, which needs a join — the service
-  // layer adds `enrolments: { some: { sectionId: { in: actor.sectionIds } } }`.
+
+  // Teachers and HODs are scoped by the sections they teach, which is a join rather than
+  // an id list.
+  if (actor.sectionIds.length > 0) {
+    return { enrolments: { some: { sectionId: { in: [...actor.sectionIds] }, droppedAt: null } } };
+  }
+
+  // No scope resolved: match nothing rather than everything. Getting this default wrong
+  // is how a list endpoint leaks a whole school.
   return { id: { in: [] } };
 }

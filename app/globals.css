@@ -24,6 +24,14 @@
   --warning: #a16207;
   --danger: #b91c1c;
   --info: #1d4ed8;
+
+  /*
+   * The mobile tab bar's height, shared so anything that anchors itself to the bottom of
+   * the screen can sit above it rather than underneath it. A sticky primary action hidden
+   * behind the tab bar is unusable on a phone, and it is invisible on a desktop browser
+   * where the tab bar is not rendered at all.
+   */
+  --bottom-nav-height: 3.5rem;
 }
 
 @layer base {

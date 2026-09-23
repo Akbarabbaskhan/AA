@@ -3,13 +3,16 @@ import type { RoleName } from '@prisma/client';
 import { BottomTabBar } from './bottom-tab-bar';
 import { ImpersonationBanner } from './impersonation-banner';
 import { Sidebar } from './sidebar';
+import { LanguageToggle } from './language-toggle';
 import { bottomTabs, navFor } from './nav-config';
+import type { Locale } from '@/lib/i18n/config';
 
 export type AppShellProps = {
   children: ReactNode;
   roles: readonly RoleName[];
   activeRole?: RoleName;
   schoolName: string;
+  locale: Locale;
   impersonation?: { actorName: string; targetName: string };
 };
 
@@ -24,6 +27,7 @@ export function AppShell({
   roles,
   activeRole,
   schoolName,
+  locale,
   impersonation,
 }: AppShellProps) {
   const items = navFor(roles, activeRole);
@@ -34,6 +38,15 @@ export function AppShell({
       <div className="flex flex-1">
         <Sidebar items={items} schoolName={schoolName} />
         <main className="mx-auto w-full max-w-container flex-1 px-2 pb-24 pt-3 desktop:px-4 desktop:pb-section">
+          {/*
+            The language toggle sits at the top of the content, on every screen, in both
+            scripts. The spec singles the parent portal out for this, and a control a
+            parent has to hunt for behind a settings menu they cannot read is one that
+            does not exist.
+          */}
+          <div className="mb-3 flex justify-end">
+            <LanguageToggle current={locale} />
+          </div>
           {children}
         </main>
       </div>

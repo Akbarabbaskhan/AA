@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/api/errors';
 import { writeAudit, writeAuditMany } from '@/lib/services/audit';
+import { notifyAbsence } from '@/lib/services/notifications/triggers';
 import { getSchoolSettings } from '@/lib/services/school-settings';
 import {
   assertCanAccessSection,
@@ -354,6 +355,39 @@ export async function saveRegister(
   }
 
   await writeAuditMany(actor, audits);
+
+  /*
+   * Absence alerts.
+   *
+   * "Marking a student absent produces a WhatsApp message to the primary guardian within
+   * 30 minutes, batched with any other absences that day." Fired once per newly absent
+   * student; notify()'s daily batch key collapses four periods into one message, so
+   * calling it per period is both correct and cheap.
+   *
+   * Deliberately after the audit write and deliberately not awaited into the response
+   * path's failure mode: a WhatsApp outage must not fail a register a teacher has just
+   * marked. The attempt is recorded either way, which is what the delivery log is for.
+   */
+  const newlyAbsent = audits
+    .filter((entry) => {
+      const after = entry.after as { status?: string } | undefined;
+      const before = entry.before as { status?: string } | undefined;
+      return after?.status === 'ABSENT' && before?.status !== 'ABSENT';
+    })
+    .map((entry) => entry.entityId.split(':')[1])
+    .filter((studentId): studentId is string => Boolean(studentId));
+
+  for (const studentId of newlyAbsent) {
+    try {
+      await notifyAbsence(actor.schoolId, studentId, {
+        date: input.date,
+        periodLabel: `Period ${input.periodIndex}`,
+      });
+    } catch {
+      // Swallowed on purpose: the register is saved, and an undeliverable alert is a
+      // notification-log problem, not a reason to tell a teacher their marking failed.
+    }
+  }
 
   return { sessionId: session.id, created: existingSession === null, results };
 }

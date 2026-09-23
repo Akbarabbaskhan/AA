@@ -27,14 +27,23 @@ export const NAV_BY_ROLE: Readonly<Record<RoleName, readonly NavItem[]>> = Objec
     { key: 'resources', href: '/resources', icon: 'folder' },
     { key: 'doubts', href: '/doubts', icon: 'message' },
     { key: 'mastery', href: '/mastery', icon: 'target' },
+    { key: 'fees', href: '/fees', icon: 'receipt' },
+    { key: 'announcements', href: '/announcements', icon: 'megaphone' },
+    { key: 'notifications', href: '/notifications', icon: 'bell' },
     { key: 'careers', href: '/careers', icon: 'compass' },
   ],
   PARENT: [
+    // The four things the spec says a parent home screen shows, then the three things
+    // they are allowed to do. Nothing else — a parent portal that grows a sidebar is one
+    // nobody finds anything in.
     { key: 'dashboard', href: '/dashboard', icon: 'home' },
     { key: 'attendance', href: '/attendance', icon: 'check' },
     { key: 'results', href: '/results', icon: 'chart' },
     { key: 'fees', href: '/fees', icon: 'receipt' },
-    { key: 'children', href: '/children', icon: 'users' },
+    { key: 'announcements', href: '/announcements', icon: 'megaphone' },
+    { key: 'leave', href: '/leave', icon: 'calendar' },
+    { key: 'meetings', href: '/meetings', icon: 'users' },
+    { key: 'notifications', href: '/notifications', icon: 'bell' },
   ],
   TEACHER: [
     { key: 'dashboard', href: '/dashboard', icon: 'home' },
@@ -45,6 +54,10 @@ export const NAV_BY_ROLE: Readonly<Record<RoleName, readonly NavItem[]>> = Objec
     { key: 'quizzes', href: '/quizzes', icon: 'help-circle' },
     { key: 'resources', href: '/resources', icon: 'folder' },
     { key: 'doubts', href: '/doubts', icon: 'message' },
+    { key: 'announcements', href: '/announcements', icon: 'megaphone' },
+    { key: 'leave', href: '/leave', icon: 'calendar' },
+    { key: 'meetings', href: '/meetings', icon: 'users' },
+    { key: 'notifications', href: '/notifications', icon: 'bell' },
     { key: 'remarks', href: '/remarks', icon: 'message' },
   ],
   HOD: [
@@ -66,13 +79,21 @@ export const NAV_BY_ROLE: Readonly<Record<RoleName, readonly NavItem[]>> = Objec
     { key: 'staff', href: '/staff', icon: 'briefcase' },
     { key: 'exams', href: '/exams', icon: 'award' },
     { key: 'announcements', href: '/announcements', icon: 'megaphone' },
+    { key: 'fees', href: '/fees', icon: 'receipt' },
+    { key: 'leave', href: '/leave', icon: 'calendar' },
+    { key: 'notifications', href: '/notifications', icon: 'bell' },
     { key: 'settings', href: '/settings', icon: 'settings' },
   ],
   BURSAR: [
-    { key: 'dashboard', href: '/dashboard', icon: 'home' },
+    // The accounts office's actual day: what is owed, who is behind, and the statement
+    // that landed this morning.
     { key: 'fees', href: '/fees', icon: 'receipt' },
+    { key: 'defaulters', href: '/fees/defaulters', icon: 'alert' },
+    { key: 'reconcile', href: '/fees/reconcile', icon: 'link' },
+    { key: 'reports', href: '/fees/reports', icon: 'chart' },
+    { key: 'dashboard', href: '/dashboard', icon: 'home' },
     { key: 'students', href: '/students', icon: 'users' },
-    { key: 'reports', href: '/reports', icon: 'chart' },
+    { key: 'notifications', href: '/notifications', icon: 'bell' },
   ],
   SUPERADMIN: [
     { key: 'dashboard', href: '/dashboard', icon: 'home' },

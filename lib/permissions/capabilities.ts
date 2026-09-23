@@ -208,6 +208,15 @@ const ADMIN: readonly Capability[] = [
   'remark.read.children',
   'remark.write',
   'leave.approve',
+  /*
+   * Read, never write.
+   *
+   * The spec gives the coordinator "all reports" for the whole campus, and the collection
+   * position is a report. It gives fee structures, vouchers, payments, defaulters and
+   * reconciliation to the bursar, so none of those appear here: a coordinator can see what
+   * the school is owed and cannot move a rupee of it.
+   */
+  'fee.read.school',
   'resource.read',
   'resource.upload',
   'resource.moderate',

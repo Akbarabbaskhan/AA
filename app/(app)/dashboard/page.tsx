@@ -10,6 +10,8 @@ import { getDailyReport, getStudentAttendance } from '@/lib/services/attendance/
 import { getFoundationSummary } from '@/lib/services/foundation';
 import { getSchoolSettings } from '@/lib/services/school-settings';
 import { getTimetable } from '@/lib/services/timetable';
+import { getChildren, getParentHome } from '@/lib/services/parents';
+import { ParentHomeScreen } from '@/components/features/parents/parent-home';
 import { can, hasRole, primaryRoleOf } from '@/lib/permissions';
 import { zonedDateString } from '@/lib/utils/tz';
 
@@ -25,13 +27,18 @@ function formatPercent(value: number | null): string {
  * Nothing here is a placeholder: every figure is a live query through the tenant-scoped
  * client, and every card links to the screen that acts on it.
  */
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: { studentId?: string };
+}) {
   const actor = await requireSessionActor();
-  const [t, tNav, tAttendance, tRoles] = await Promise.all([
+  const [t, tNav, tAttendance, tRoles, tParents] = await Promise.all([
     getTranslations('dashboard'),
     getTranslations('nav'),
     getTranslations('attendance'),
     getTranslations('roles'),
+    getTranslations('parents'),
   ]);
 
   return withActor(actor, async () => {
@@ -101,7 +108,29 @@ export default async function DashboardPage() {
       );
     }
 
-    // Student or parent: the numbers, and what is next.
+    /*
+     * Parent: the four facts the spec names, and nothing else.
+     *
+     * Deliberately a different screen from the student's, not the student's with pieces
+     * hidden. A parent wants "is my child in school, do I owe anything, is there a result,
+     * is there news" — which is a different question from "what is my next class".
+     */
+    if (hasRole(actor, 'PARENT') && !actor.studentId) {
+      const children = await getChildren(actor);
+      if (children.length === 0) {
+        return (
+          <div className="flex flex-col gap-3">
+            {header(t('title'))}
+            <EmptyState title={tParents('noChildren')} body={tParents('noChildrenBody')} />
+          </div>
+        );
+      }
+
+      const home = await getParentHome(actor, searchParams?.studentId);
+      return <ParentHomeScreen home={home} students={children} />;
+    }
+
+    // Student: the numbers, and what is next.
     const studentId = actor.studentId ?? actor.childStudentIds[0];
     if (studentId) {
       const [attendance, timetable] = await Promise.all([

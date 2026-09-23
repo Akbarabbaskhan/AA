@@ -48,6 +48,23 @@ export const schoolSettingsSchema = z.object({
       /** "Schools ask for this. Make it a setting, default off." */
       gateResultsOnOverdue: z.boolean().default(false),
       gateOverdueDays: z.number().int().min(1).max(365).default(60),
+      /** Printed on the voucher prefix and the challan. */
+      voucherPrefix: z.string().min(1).max(10).default('VOLT'),
+      /**
+       * The bank block on the challan. A voucher without the school's real account
+       * details is one the counter hands back, so this is school configuration rather
+       * than anything Volt can default usefully.
+       */
+      bank: z
+        .object({
+          name: z.string().max(120).default(''),
+          accountTitle: z.string().max(160).default(''),
+          accountNumber: z.string().max(40).default(''),
+          branch: z.string().max(160).default(''),
+        })
+        .default({}),
+      /** Charged after the due date where a school does that; 0 prints no second total. */
+      lateFeePaisa: z.number().int().min(0).max(10_000_000).default(0),
     })
     .default({}),
   engagement: z

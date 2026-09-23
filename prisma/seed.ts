@@ -21,6 +21,7 @@ import type { Actor } from '../lib/permissions';
 import { Rng } from './seed/random';
 import { seedAttendance, type SeedSection, type SeedSlot } from './seed/attendance';
 import { seedExams, type ExamSeedSection } from './seed/exams';
+import { seedFees, type FeeSeedOptions } from './seed/fees';
 import {
   seedLearning,
   SUBJECT_TOPICS,
@@ -865,6 +866,41 @@ async function main(): Promise<void> {
   });
 
   // ---------------------------------------------------------------------------
+  // Finance
+  //
+  // Seeded last among the academic data and before the demo logins, because a coordinator
+  // account has to exist to approve the concessions and sign the credit notes. Six months
+  // of monthly billing puts somebody in every aging bucket.
+  // ---------------------------------------------------------------------------
+  const studentsByYearGroup = new Map<string, string[]>();
+  for (const section of sectionPlans) {
+    const groupId = yearGroupByName.get(section.yearGroup);
+    if (!groupId) continue;
+    const existing = studentsByYearGroup.get(groupId) ?? [];
+    for (const student of section.students) {
+      if (!existing.includes(student.studentId)) existing.push(student.studentId);
+    }
+    studentsByYearGroup.set(groupId, existing);
+  }
+
+  const feeSeedOptions: FeeSeedOptions = {
+    schoolId,
+    academicYearId: currentYear.id,
+    today: todayString,
+    voucherPrefix: 'LGS',
+    months: 6,
+    meetingStaffIds: staffPlans
+      .filter((plan) => plan.subjectCode !== null)
+      .slice(0, 6)
+      .map((plan) => plan.staffId),
+    yearGroups: YEAR_GROUPS.flatMap((group) => {
+      const id = yearGroupByName.get(group.name);
+      const studentIds = id ? studentsByYearGroup.get(id) ?? [] : [];
+      return id && studentIds.length > 0 ? [{ id, name: group.name, studentIds }] : [];
+    }),
+  };
+
+  // ---------------------------------------------------------------------------
   // Demo logins, one per role, with documented credentials.
   // ---------------------------------------------------------------------------
   const demoAccounts: { role: RoleName; name: string; phone: string; email: string }[] = [
@@ -908,11 +944,27 @@ async function main(): Promise<void> {
     }
   }
 
+  // Finance runs here rather than above because every concession and credit note carries
+  // the coordinator's user id as its approver, and an approval with nobody's name on it is
+  // exactly what an auditor looks for.
+  const fees = await seedFees(prisma, rng, feeSeedOptions);
+
   // The teacher, student and parent demo logins are real accounts from the data above, so
   // the demo shows a populated timetable rather than an empty one.
   const demoTeacher = staffPlans[0]!;
   const demoStudent = plans[0]!;
-  const demoParent = guardianPlans[0]!;
+  /*
+   * The documented parent login is deliberately a guardian with two children.
+   *
+   * The child switcher is the first thing a parent sees and one of the few things that
+   * distinguishes this portal from a letter home — demoing it with an account that has one
+   * child shows a control that does nothing.
+   */
+  const demoParentIndex = Math.max(
+    0,
+    guardianPlans.findIndex((plan) => plan.children.length > 1),
+  );
+  const demoParent = guardianPlans[demoParentIndex]!;
 
   /*
    * The two older series are published, so a student's grade-trend chart and a teacher's
@@ -980,6 +1032,12 @@ async function main(): Promise<void> {
     submissions: learning.submissions,
     doubtThreads: learning.doubts,
     topicMastery: learning.masteryRows,
+    feeStructures: fees.structures,
+    invoices: fees.invoices,
+    payments: fees.payments,
+    creditNotes: fees.creditNotes,
+    concessions: fees.discounts,
+    meetingSlots: fees.meetingSlots,
   };
 
   console.log('\nSeeded:');
@@ -996,6 +1054,12 @@ async function main(): Promise<void> {
     `  practice         ${learning.attempts} attempts by 60 students across ${learning.papers} papers`,
   );
   console.log(
+    `  fees             PKR ${Math.round(fees.collectedPaisa / 100).toLocaleString('en-PK')} collected of ` +
+      `${Math.round(fees.duePaisa / 100).toLocaleString('en-PK')} due ` +
+      `(${((fees.collectedPaisa / Math.max(1, fees.duePaisa)) * 100).toFixed(1)}%), ` +
+      `${fees.defaulters} families behind`,
+  );
+  console.log(
     `  published        ${toPublish.map((series) => series.name).join(', ')} ` +
       `(the latest series is left unpublished for the demo)`,
   );
@@ -1006,7 +1070,10 @@ async function main(): Promise<void> {
   console.log(`  Volt staff   support@volt.test       +923001110003`);
   console.log(`  Teacher      ${demoTeacher.employeeCode.toLowerCase()}@volt-demo.test  ${demoTeacher.phone}`);
   console.log(`  Student      ${demoStudent.rollNumber.toLowerCase()}@volt-demo.test  ${demoStudent.phone}`);
-  console.log(`  Parent       (phone only)            ${phoneFor(500_000)}  — ${demoParent.name}`);
+  console.log(
+    `  Parent       (phone only)            ${phoneFor(500_000 + demoParentIndex)}  — ` +
+      `${demoParent.name} (${demoParent.children.length} children)`,
+  );
 
   console.log(`\nDone in ${elapsed}s.`);
 }

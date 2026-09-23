@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { ApiError } from '@/lib/api/errors';
 import { writeAudit } from '@/lib/services/audit';
+import { notifyResultsPublished } from '@/lib/services/notifications/triggers';
 import { requireCapability, type Actor } from '@/lib/permissions';
 import { parseBands, type GradeBand } from '@/lib/services/grading/bands';
 import { aggregateSubject, type ComponentScore } from '@/lib/services/grading/aggregate';
@@ -358,6 +359,22 @@ export async function publishExamSeries(
     entityId: examSeriesId,
     after: { name: series.name, resultCards: cards.length, subjects: subjectsGraded },
   });
+
+  /*
+   * Tell the families.
+   *
+   * Publication is the one moment where everyone finds out at once, which is why the spec
+   * makes it a whole-series action. A parent who hears their child's result from another
+   * parent is the complaint this prevents.
+   *
+   * Failures here never unpublish anything: the marks are out, and an undelivered message
+   * is a line in the delivery log for the office to chase.
+   */
+  try {
+    await notifyResultsPublished(actor.schoolId, [...byStudent.keys()], series.name);
+  } catch {
+    // The publication stands; the notification log records what happened.
+  }
 
   return {
     examSeriesId,

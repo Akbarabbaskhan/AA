@@ -162,6 +162,9 @@ rebuilds rather than duplicating, and the PRNG is seeded so two runs are identic
 | Quizzes | 40 — one already sat per section, one that has just opened, so there is something to actually do |
 | Question bank | 336 topic-tagged questions, and 2,096 topic mastery rows behind the weakness map |
 | Assignments | 436 with 5,500 submissions, some late, some ungraded, some missing |
+| Fees | 12,000 invoices over 6 months, 9,500 payments, 95.6% of what is due collected, ~460 families behind across every aging bucket |
+| Concessions | 167 sibling, scholarship and staff-child discounts, each with an approver |
+| Meetings | 72 parents' evening slots across six teachers |
 
 ### How the timetable is clash-free
 
@@ -207,8 +210,8 @@ full fee cycle.
 | **M1 Attendance core** | Bulk import with column mapping, three-axis timetable clash detection, offline attendance marking, attendance dashboards | **Complete** |
 | **M2 Academics** | Exam series, component weighting, marks entry grid, moderation, publication, result card PDFs, student and teacher analytics | **Complete** |
 | **M3 Learning** | Past paper vault, practice engine, quiz engine with auto-marking and topic mastery, assignments, resources, doubt threads | **Complete** |
-| M4 Fees and parents | Invoicing, vouchers, reconciliation, parent portal in Urdu, WhatsApp and SMS | Next |
-| M5 Student life | Societies, events, effort leaderboards, careers, digital ID | |
+| **M4 Fees and parents** | Fee structures, bulk invoicing, bank-format vouchers, payments, discounts, defaulter aging, statement reconciliation, parent portal in Urdu, channel-agnostic notifications | **Complete** |
+| M5 Student life | Societies, events, effort leaderboards, careers, digital ID | Next |
 | M6 Harden and pilot | Performance pass, security review, backup drill, audit log UI, year-end rollover | |
 
 ### What M0 delivers
@@ -450,6 +453,94 @@ its budget:
 These are assertions in `tests/integration/learning-performance.test.ts`, not a one-off
 measurement — a regression fails the suite.
 
+### What M4 delivers
+
+The milestone aimed at the budget holder. "The bursar is your internal champion. Win the
+accounts office and the contract renews itself."
+
+**Financial integrity is the design, not a feature.** Every amount is an integer number of
+paisa — there is no float anywhere in the finance path. An invoice is **never edited once a
+payment is recorded against it**: a correction is a credit note, with an amount, a reason
+and an approver, on the record for good. Every finance mutation is audit-logged with the
+actor, and a reversal keeps what the payment was as well as who undid it.
+
+**Bulk invoicing** raises a numbered voucher for a whole year group in one action, and is
+idempotent on (student, period): pressing the button twice because the first run seemed
+slow must not bill a family twice. Voucher numbers are allocated inside the transaction,
+because two people in an accounts office do press the button at the same moment.
+
+**The voucher is a bank challan**, not a styled invoice — three copies across one A4
+landscape sheet, each complete, each with the bank block, the amount in figures and in the
+lakh/crore wording a Pakistani counter expects, and a stamp box. "Schools will not switch
+to a voucher their bank rejects."
+
+**Reconciliation** is the module's hardest problem and the accounts office's biggest daily
+pain. A statement CSV is parsed (the column names four different banks use, thousands
+separators, currency prefixes, parenthesised negatives, day-first dates), then each credit
+line is scored against every open voucher. The design rule is to be *right about what it is
+sure of and honest about the rest*: a confident match is pre-ticked, an ambiguous one shows
+its candidates and its reasons, an unmatched one says so. **Nothing posts until a person
+presses the button.** A tool that silently mis-posts one payment in a hundred is worse than
+the spreadsheet, because nobody checks it.
+
+**Defaulters** roll up per family, not per invoice — a student with four unpaid months is
+one conversation — with aging buckets, the guardian's phone number on every row, a CSV
+export and a one-click reminder that aggregates to one message per family before sending
+anything.
+
+**The optional fee gate** is off unless a school turns it on, and when it blocks a result
+card it says why and what would clear it. A child told only "unavailable" learns that the
+school is arbitrary.
+
+**`notify(userId, type, payload)`** is the only way anything in Volt reaches a person.
+Nothing else talks to WhatsApp, SMS or email. A type declares its channels, its urgency and
+its batching; the recipient's preference overrides the default; quiet hours hold anything
+non-urgent between 21:00 and 07:00; and **every attempt is written down, including the ones
+that were suppressed and why**. That log is searchable by phone number, because the
+question always arrives as "what did we send to this parent" while the parent is on the
+line.
+
+Batching is real rather than nominal: a batched message is **not delivered when it is
+raised**. It waits in the queue, its count rises as more events land, and one message goes
+out when the window closes — so a parent whose child missed four periods gets one message
+saying four, not four messages.
+
+**The parent portal** is four facts and three actions. Today's attendance, the fee
+position, the latest result, unread announcements — and leave, meeting booking, and
+announcement replies. A parent has no write access to anything academic and cannot message
+teachers freely, because "that becomes a support nightmare for the school."
+
+**Urdu is not a toggle in a settings menu.** The language control is on every screen, each
+option written in its own script, so somebody who cannot read the current interface can
+still find the other one. The choice is saved to the account rather than the browser,
+because it also decides which language the school's WhatsApp messages arrive in — and a
+parent who switches the portal to Urdu and keeps getting English alerts has not really been
+given the choice.
+
+### Performance, measured
+
+Against the seeded ledger — 12,000 invoices, 9,500 payments, six months of billing:
+
+| Endpoint | Budget | Measured (p95) |
+| --- | --- | --- |
+| Invoice list | < 300ms | 24ms |
+| Defaulter list | < 300ms | 89ms |
+| Collection report | < 300ms | 114ms |
+| Parent home screen | < 300ms | 27ms |
+| Notification inbox | < 300ms | 4ms |
+| Delivery log search | < 300ms | 34ms |
+| Announcement list | < 300ms | 2ms |
+| Reconcile a 100-line statement | a coffee break | 472ms |
+| 250 vouchers as one PDF | < 60s | 8s |
+
+Two things were fixed rather than accepted. The collection report started at **1,417ms**
+because it pulled every invoice for the year into JavaScript and summed there; aggregating
+in Postgres took it to 114ms — the same mistake, and the same fix, as the M1 daily
+attendance report. And publishing a series for 2,000 students had become a **50-second**
+request once it started notifying guardians, because it called `notify()` once per family;
+a bulk path that reads preferences once and writes every row in one insert took the whole
+seed back inside its 60-second budget.
+
 ### Deliberately not built
 
 Library, transport, hostel, payroll and biometric hardware modules. Every competitor in
@@ -480,8 +571,8 @@ Where Chromium is provisioned outside Playwright (locked-down CI images), point
 | Layer | Tool | What it covers |
 | --- | --- | --- |
 | Unit | Vitest | **Grading** (component weighting, boundary arithmetic, class statistics, outliers, percentile), **attendance percentages**, the lock window, offline conflict resolution and **timetable clash logic** — the four the spec requires to be near 100%, because wrong answers there are invisible and expensive. Plus CSV parsing, column mapping and import date handling |
-| Integration | Vitest + real Postgres | Tenancy enforcement, permission boundaries, the register and offline sync, the import acceptance criterion, the full exam cycle from setup to PDF, the whole learning module end to end, the seed's own invariants, and the read budgets as assertions rather than as a one-off measurement |
-| E2E | Playwright | The demo-script flows on a mobile viewport, including marking a register in airplane mode and watching it sync, sitting a quiz, a timed practice attempt proving the mark scheme stays locked, and a per-role 403 matrix over the real HTTP stack |
+| Integration | Vitest + real Postgres | Tenancy enforcement, permission boundaries, the register and offline sync, the import acceptance criterion, the full exam cycle from setup to PDF, the whole learning module end to end, the finance integrity rules, notification batching and quiet hours against a recording provider, the parent portal's scope, the seed's own invariants, and the read budgets as assertions rather than as a one-off measurement |
+| E2E | Playwright | The demo-script flows on a mobile viewport, including marking a register in airplane mode and watching it sync, sitting a quiz, a timed practice attempt proving the mark scheme stays locked, the bursar's day from ledger to reconciliation, the parent portal switching to Urdu and laying out right to left, and a per-role 403 matrix over the real HTTP stack |
 
 Both suites run against a single shared database, so both are configured to run
 sequentially. Parallel files racing over the same tenant is a flake factory.
@@ -492,7 +583,11 @@ client would prove nothing.
 No test is allowed to skip itself into a pass. A quiz allows a fixed number of attempts, so
 the end-to-end test that sits one creates its own through the API rather than consuming a
 seeded quiz — otherwise it would pass on the first run and silently skip on every run
-after, which reads exactly like a pass.
+after, which reads exactly like a pass. For the same reason the seed's documented parent
+login is a guardian with **two** children: the child-switcher test used to skip on a
+one-child account, and a switcher demoed with nothing to switch between is not a demo.
+
+**547 unit and integration tests, 134 end-to-end across mobile and desktop, zero skips.**
 
 ---
 
@@ -529,6 +624,22 @@ appeared in a page of a list, which would have started refusing perfectly legiti
 the moment a school's library, section or subject outgrew that page. Each now authorises
 against the record itself, with tests that backdate a thread off the recent list and open
 it anyway.
+
+M4 holds money, so the rules are structural rather than procedural. Invoices are immutable
+once a payment lands; corrections are credit notes with an approver. Fee mutations are the
+bursar's alone — the coordinator can read the collection position, because the spec gives
+them "all reports", and cannot record a payment, grant a concession or reconcile a
+statement. A parent sees exactly their own children, enforced as a query predicate rather
+than a filter over results, and sees that another family's meeting slot is taken without
+ever learning whose it is. The raw SQL behind the collection report carries `school_id`
+explicitly, because a raw statement is outside the tenancy extension's reach.
+
+One M4 bug is worth naming because a test found it and nothing else would have: the
+statement matcher flattened a narration to digits, so `FEE TST-2026-000003` plus a
+reference of `TRXREC1` produced `20260000031` — which contains the sequence of a completely
+different voucher. It compares contiguous digit runs now, with a unit test pinning it. The
+ambiguity margin meant it was proposed rather than auto-posted, which is the whole reason
+that margin exists.
 
 Scheduled for M6: the full security review, encryption at rest, and the backup and restore
 drill. Do not go live at a school before those pass.

@@ -17,6 +17,9 @@ import {
   type SendOutcome,
 } from '@/lib/services/notifications/providers';
 import { notifyAbsence } from '@/lib/services/notifications/triggers';
+import { isWithinQuietHours } from '@/lib/services/notifications/quiet-hours';
+import { getSchoolSettings } from '@/lib/services/school-settings';
+import { timezoneOffsetMs } from '@/lib/utils/tz';
 import {
   createAnnouncement,
   listAnnouncements,
@@ -48,6 +51,29 @@ let whatsapp: RecordingProvider;
 let sms: RecordingProvider;
 
 const TEST_TITLE = '[test] ';
+
+/**
+ * The next instant at or after `from` that is not inside the school's quiet hours.
+ *
+ * A flush dated inside quiet hours correctly withholds everything but in-app, so a test
+ * that flushes at "now plus two hours" passes at noon and fails at half past one in the
+ * morning Karachi time — which is half past eight in the evening on the CI box. The rule
+ * being tested is "the window closed", not "the sun is up", so the instant is chosen rather
+ * than inherited from whenever the suite happens to run.
+ */
+async function nextWakingHour(from: Date): Promise<Date> {
+  const settings = await asActor(admin, () => getSchoolSettings());
+  const { quietHours } = settings.notifications;
+
+  const candidate = new Date(from);
+  for (let step = 0; step < 48; step += 1) {
+    const local = new Date(candidate.getTime() + timezoneOffsetMs(candidate, settings.timezone));
+    const minutes = local.getUTCHours() * 60 + local.getUTCMinutes();
+    if (!isWithinQuietHours(minutes, quietHours)) return candidate;
+    candidate.setUTCHours(candidate.getUTCHours() + 1);
+  }
+  return candidate;
+}
 
 beforeAll(async () => {
   schoolId = await getSchoolId();
@@ -81,7 +107,22 @@ beforeAll(async () => {
   const { resolveActor } = await import('@/lib/permissions/resolve');
   const resolved = await asActor(admin, () => resolveActor(picked.guardianUserId));
   parent = resolved!;
-});
+
+  /*
+   * The seed leaves a real backlog: thousands of rows waiting for a batch window to close or
+   * for quiet hours to end. None of it is under test here, and a test that has to drain it
+   * before it can see its own row is a test whose assertions depend on how much else ran
+   * first — which is how "flush is idempotent" passes on the second run of the day and fails
+   * on a fresh database. So the queue is emptied once, before anything asserts.
+   */
+  const waking = await nextWakingHour(new Date());
+  for (let pass = 0; pass < 1_000; pass += 1) {
+    const result = await asActor(admin, () =>
+      flushPending(schoolId, { now: waking, limit: 1_000 }),
+    );
+    if (result.sent === 0) break;
+  }
+}, 120_000);
 
 afterEach(() => {
   resetProviders();
@@ -111,12 +152,18 @@ describe('notify()', () => {
   it('fans out to the channels the type declares', async () => {
     install();
     const result = await asActor(admin, () =>
-      notify(schoolId, parent.userId, 'fee.receipt', {
-        title: `${TEST_TITLE}Payment received`,
-        body: 'PKR 12,500 received.',
-        // Midday, so quiet hours are not in play.
-        templateVariables: ['12,500', 'TST-1'],
-      }, { now: new Date('2026-09-23T09:00:00.000Z') }),
+      notify(
+        schoolId,
+        parent.userId,
+        'fee.receipt',
+        {
+          title: `${TEST_TITLE}Payment received`,
+          body: 'PKR 12,500 received.',
+          // Midday, so quiet hours are not in play.
+          templateVariables: ['12,500', 'TST-1'],
+        },
+        { now: new Date('2026-09-23T09:00:00.000Z') },
+      ),
     );
 
     expect(result.attempted).toContain('IN_APP');
@@ -131,18 +178,33 @@ describe('notify()', () => {
     );
 
     const result = await asActor(admin, () =>
-      notify(schoolId, parent.userId, 'fee.receipt', {
-        title: `${TEST_TITLE}Opted out`,
-        body: 'Should not reach WhatsApp.',
-      }, { now: new Date('2026-09-23T09:00:00.000Z') }),
+      notify(
+        schoolId,
+        parent.userId,
+        'fee.receipt',
+        {
+          title: `${TEST_TITLE}Opted out`,
+          body: 'Should not reach WhatsApp.',
+        },
+        { now: new Date('2026-09-23T09:00:00.000Z') },
+      ),
     );
 
     expect(result.attempted).not.toContain('WHATSAPP');
-    expect(result.suppressed.some((entry) => entry.channel === 'WHATSAPP' && entry.reason === 'optedOut')).toBe(true);
+    expect(
+      result.suppressed.some(
+        (entry) => entry.channel === 'WHATSAPP' && entry.reason === 'optedOut',
+      ),
+    ).toBe(true);
     expect(whatsapp.sent).toHaveLength(0);
 
     const log = await asActor(admin, () =>
-      getDeliveryLog(admin, { userId: parent.userId, channel: 'WHATSAPP', status: 'SUPPRESSED', limit: 5 }),
+      getDeliveryLog(admin, {
+        userId: parent.userId,
+        channel: 'WHATSAPP',
+        status: 'SUPPRESSED',
+        limit: 5,
+      }),
     );
     expect(log[0]?.failureReason).toBe('optedOut');
 
@@ -163,10 +225,16 @@ describe('notify()', () => {
     install();
     // 23:30 in Karachi is 18:30 UTC.
     const result = await asActor(admin, () =>
-      notify(schoolId, parent.userId, 'result.published', {
-        title: `${TEST_TITLE}Late night result`,
-        body: 'Result published.',
-      }, { now: new Date('2026-09-23T18:30:00.000Z') }),
+      notify(
+        schoolId,
+        parent.userId,
+        'result.published',
+        {
+          title: `${TEST_TITLE}Late night result`,
+          body: 'Result published.',
+        },
+        { now: new Date('2026-09-23T18:30:00.000Z') },
+      ),
     );
 
     // In-app lands regardless — it makes no noise and it is the record. The rails that
@@ -179,10 +247,16 @@ describe('notify()', () => {
   it('sends an urgent message straight through quiet hours', async () => {
     install();
     const result = await asActor(admin, () =>
-      notify(schoolId, parent.userId, 'fee.receipt', {
-        title: `${TEST_TITLE}Urgent at night`,
-        body: 'Payment received.',
-      }, { now: new Date('2026-09-23T18:30:00.000Z') }),
+      notify(
+        schoolId,
+        parent.userId,
+        'fee.receipt',
+        {
+          title: `${TEST_TITLE}Urgent at night`,
+          body: 'Payment received.',
+        },
+        { now: new Date('2026-09-23T18:30:00.000Z') },
+      ),
     );
     expect(result.attempted).toContain('WHATSAPP');
     expect(whatsapp.sent).toHaveLength(1);
@@ -191,17 +265,23 @@ describe('notify()', () => {
   it('releases what quiet hours held, and never delivers the same row twice', async () => {
     install();
     /*
-     * Real wall-clock time, not a fixed instant. Rows carry a real `createdAt`, so a flush
-     * dated in the past releases nothing however the quiet-hours maths works out.
+     * After now, so the row this test writes is older than the flush, and outside quiet
+     * hours, so the flush is allowed to reach a rail at all.
      */
-    const morning = new Date();
+    const morning = await nextWakingHour(new Date());
 
     // A row this test owns, queued overnight so the flush is what releases it.
     const queued = await asActor(admin, () =>
-      notify(schoolId, parent.userId, 'result.published', {
-        title: `${TEST_TITLE}Held overnight`,
-        body: 'Result published.',
-      }, { now: new Date('2026-09-22T19:00:00.000Z') }),
+      notify(
+        schoolId,
+        parent.userId,
+        'result.published',
+        {
+          title: `${TEST_TITLE}Held overnight`,
+          body: 'Result published.',
+        },
+        { now: new Date('2026-09-22T19:00:00.000Z') },
+      ),
     );
     const held = queued.notificationIds;
     expect(held.length).toBeGreaterThan(0);
@@ -212,11 +292,15 @@ describe('notify()', () => {
      * and prove nothing about double-sending.
      */
     for (let pass = 0; pass < 60; pass += 1) {
-      const result = await asActor(admin, () => flushPending(schoolId, { now: morning, limit: 500 }));
+      const result = await asActor(admin, () =>
+        flushPending(schoolId, { now: morning, limit: 500 }),
+      );
       if (result.sent === 0) break;
     }
 
-    const drained = await asActor(admin, () => flushPending(schoolId, { now: morning, limit: 500 }));
+    const drained = await asActor(admin, () =>
+      flushPending(schoolId, { now: morning, limit: 500 }),
+    );
     expect(drained.sent).toBe(0);
 
     // The row this test queued was delivered exactly once.
@@ -245,20 +329,32 @@ describe('batching', () => {
     );
 
     const first = await asActor(admin, () =>
-      notify(schoolId, parent.userId, 'attendance.absent', {
-        title: `${TEST_TITLE}Absent`,
-        body: 'Absent for period 1.',
-      }, { now: day }),
+      notify(
+        schoolId,
+        parent.userId,
+        'attendance.absent',
+        {
+          title: `${TEST_TITLE}Absent`,
+          body: 'Absent for period 1.',
+        },
+        { now: day },
+      ),
     );
     expect(first.batched).toBe(false);
     batchIds = first.notificationIds;
 
     for (let period = 2; period <= 4; period += 1) {
       const next = await asActor(admin, () =>
-        notify(schoolId, parent.userId, 'attendance.absent', {
-          title: `${TEST_TITLE}Absent`,
-          body: `Absent for period ${period}.`,
-        }, { now: day }),
+        notify(
+          schoolId,
+          parent.userId,
+          'attendance.absent',
+          {
+            title: `${TEST_TITLE}Absent`,
+            body: `Absent for period ${period}.`,
+          },
+          { now: day },
+        ),
       );
       expect(next.batched).toBe(true);
     }
@@ -291,7 +387,7 @@ describe('batching', () => {
      * which is real wall-clock time, not the instant the test passed to notify(). So the
      * flush is dated two hours past now rather than at a fixed timestamp.
      */
-    const later = new Date(Date.now() + 2 * 60 * 60_000);
+    const later = await nextWakingHour(new Date(Date.now() + 2 * 60 * 60_000));
     expect(batchIds.length).toBeGreaterThan(0);
 
     /*
@@ -302,7 +398,9 @@ describe('batching', () => {
      */
     for (let pass = 0; pass < 200; pass += 1) {
       if (whatsapp.sent.some((message) => batchIds.includes(message.notificationId))) break;
-      const result = await asActor(admin, () => flushPending(schoolId, { now: later, limit: 1_000 }));
+      const result = await asActor(admin, () =>
+        flushPending(schoolId, { now: later, limit: 1_000 }),
+      );
       if (result.sent === 0) break;
     }
 
@@ -324,13 +422,21 @@ describe('the delivery log', () => {
   it('is the evidence when a parent says they were never told', async () => {
     install();
     await asActor(admin, () =>
-      notify(schoolId, parent.userId, 'fee.receipt', {
-        title: `${TEST_TITLE}Evidence`,
-        body: 'Receipt.',
-      }, { now: new Date('2026-09-23T09:00:00.000Z') }),
+      notify(
+        schoolId,
+        parent.userId,
+        'fee.receipt',
+        {
+          title: `${TEST_TITLE}Evidence`,
+          body: 'Receipt.',
+        },
+        { now: new Date('2026-09-23T09:00:00.000Z') },
+      ),
     );
 
-    const log = await asActor(admin, () => getDeliveryLog(admin, { userId: parent.userId, limit: 20 }));
+    const log = await asActor(admin, () =>
+      getDeliveryLog(admin, { userId: parent.userId, limit: 20 }),
+    );
     expect(log.length).toBeGreaterThan(0);
     expect(log.some((row) => row.status === 'SENT')).toBe(true);
     expect(log[0]?.userPhone).toBeTruthy();
@@ -359,10 +465,16 @@ describe('the inbox', () => {
     // matches every previous run's row and the count means nothing.
     const title = `${TEST_TITLE}Inbox ${Date.now()}`;
     await asActor(admin, () =>
-      notify(schoolId, parent.userId, 'fee.receipt', {
-        title,
-        body: 'Receipt.',
-      }, { now: new Date('2026-09-23T09:00:00.000Z') }),
+      notify(
+        schoolId,
+        parent.userId,
+        'fee.receipt',
+        {
+          title,
+          body: 'Receipt.',
+        },
+        { now: new Date('2026-09-23T09:00:00.000Z') },
+      ),
     );
 
     const inbox = await asActor(parent, () => getInbox(parent, { limit: 50 }));
@@ -511,12 +623,19 @@ describe('bulk fan-out', () => {
 
     const rows = await asActor(admin, () =>
       testPrisma.notification.findMany({
-        where: { type: 'result.published', payloadJson: { path: ['title'], equals: `${TEST_TITLE}Bulk` } },
+        where: {
+          type: 'result.published',
+          payloadJson: { path: ['title'], equals: `${TEST_TITLE}Bulk` },
+        },
         select: { channel: true, deliveryStatus: true },
       }),
     );
     // In-app is complete on write; the paid rails wait for the worker.
-    expect(rows.some((row) => row.channel === 'IN_APP' && row.deliveryStatus === 'SENT')).toBe(true);
-    expect(rows.some((row) => row.channel !== 'IN_APP' && row.deliveryStatus === 'QUEUED')).toBe(true);
+    expect(rows.some((row) => row.channel === 'IN_APP' && row.deliveryStatus === 'SENT')).toBe(
+      true,
+    );
+    expect(rows.some((row) => row.channel !== 'IN_APP' && row.deliveryStatus === 'QUEUED')).toBe(
+      true,
+    );
   });
 });

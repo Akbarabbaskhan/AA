@@ -197,6 +197,15 @@ export async function seedAttendance(
   await flushSessions(prisma, options, pendingSessions);
   await flushRecords(prisma, options, pendingRecords);
 
+  /*
+   * Half a million rows arrive with no statistics behind them, and autovacuum will not have
+   * looked yet. Anything reading attendance in the same run — the badge sweep does, seconds
+   * later — gets a plan chosen from default estimates until it does, which is the difference
+   * between a 60ms query and a fifteen-second one.
+   */
+  await prisma.$executeRawUnsafe('ANALYZE attendance_records');
+  await prisma.$executeRawUnsafe('ANALYZE attendance_sessions');
+
   return {
     schoolDays,
     sessions,
@@ -205,7 +214,6 @@ export async function seedAttendance(
     chronicAbsentees,
   };
 }
-
 
 type SessionRow = {
   id: string;
@@ -272,18 +280,22 @@ async function flushRecords(
     const batch = rows.slice(index, index + FLUSH_EVERY_ROWS);
     await prisma.$executeRaw`
       INSERT INTO attendance_records
-        (id, school_id, academic_year_id, session_id, student_id, status,
+        (id, school_id, academic_year_id, session_id, student_id, date, status,
          minutes_late, created_at, updated_at)
       SELECT
         gen_random_uuid()::text, ${options.schoolId}, ${options.academicYearId},
-        t.session_id, t.student_id, t.status::text::"AttendanceStatus", t.minutes_late,
-        now(), now()
+        t.session_id, t.student_id, s.date, t.status::text::"AttendanceStatus",
+        t.minutes_late, now(), now()
       FROM unnest(
         ${batch.map((row) => row.sessionId)}::text[],
         ${batch.map((row) => row.studentId)}::text[],
         ${batch.map((row) => String(row.status))}::text[],
         ${batch.map((row) => row.minutesLate)}::int[]
       ) AS t(session_id, student_id, status, minutes_late)
+      -- The record's date is the session's, taken from the session rather than shipped
+      -- again per row: six hundred thousand date strings in a bind parameter cost more
+      -- than a hash join against twenty thousand sessions.
+      JOIN attendance_sessions s ON s.id = t.session_id
     `;
   }
 }

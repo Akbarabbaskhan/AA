@@ -317,8 +317,14 @@ describe('offline sync', () => {
       getRegister(teacher, { sectionId, date, periodIndex: 4 }),
     );
 
-    // Marked in a lab at 08:05 Pakistan time; synced now.
-    const markedAt = new Date(`${date}T03:05:00.000Z`);
+    /*
+     * Marked in a lab a few hours ago and synced now.
+     *
+     * Deliberately relative to now rather than "08:05 Pakistan time on `date`": after 19:00
+     * UTC the school's today is already tomorrow, so a fixed morning time on that date is
+     * still in the future and `syncedAt > markedAt` reads as a bug in the service.
+     */
+    const markedAt = new Date(Date.now() - 3 * 60 * 60_000);
 
     const result = await asActor(teacher, () =>
       syncBatch(teacher, {

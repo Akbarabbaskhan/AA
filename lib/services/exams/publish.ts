@@ -96,6 +96,7 @@ export async function publishExamSeries(
       endDate: true,
       isPublished: true,
       academicYearId: true,
+      academicYear: { select: { startDate: true } },
     },
   });
   if (!series) throw ApiError.notFound('Exam series not found');
@@ -176,12 +177,20 @@ export async function publishExamSeries(
 
   const markLookup = new Map(marks.map((mark) => [`${mark.assessmentId}:${mark.studentId}`, mark]));
 
-  // Attendance for the term, printed on the card.
+  /*
+   * Attendance for the term, printed on the card: from the start of the academic year up to
+   * the end of the series, not the days of the series itself.
+   *
+   * A series is usually a single day, and the exam-week figure a one-day window produces is
+   * either 100% or nothing — and nothing when the exam falls on a day with no registers,
+   * which is how a card shipped with a blank attendance line. A parent reading "attendance"
+   * on a report card means the term.
+   */
   const attendance = await prisma.attendanceRecord.groupBy({
     by: ['studentId', 'status'],
     where: {
       academicYearId: series.academicYearId,
-      session: { date: { gte: series.startDate, lte: series.endDate } },
+      date: { gte: series.academicYear.startDate, lte: series.endDate },
     },
     _count: { _all: true },
   });

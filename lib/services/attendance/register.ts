@@ -13,7 +13,13 @@ import {
   hasRole,
   type Actor,
 } from '@/lib/permissions';
-import { dateOnly, toDateOnly, zonedDateString, zonedDayOfWeek, zonedTimeString } from '@/lib/utils/tz';
+import {
+  dateOnly,
+  toDateOnly,
+  zonedDateString,
+  zonedDayOfWeek,
+  zonedTimeString,
+} from '@/lib/utils/tz';
 import { isLocked, lockDeadline, shouldOverwrite } from './policy';
 
 export const attendanceStatusSchema = z.enum(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED', 'LEAVE']);
@@ -312,7 +318,11 @@ export async function saveRegister(
     }
 
     if (!overwrite && existingSession) {
-      results.push({ studentId: mark.studentId, applied: false, reason: 'supersededByEarlierMark' });
+      results.push({
+        studentId: mark.studentId,
+        applied: false,
+        reason: 'supersededByEarlierMark',
+      });
       continue;
     }
 
@@ -328,6 +338,9 @@ export async function saveRegister(
         academicYearId: section.academicYearId,
         sessionId: session.id,
         studentId: mark.studentId,
+        // Taken from the session, never from the request: the record's date is the
+        // register's date by definition.
+        date: session.date,
         status: mark.status,
         minutesLate: mark.minutesLate ?? null,
         note: mark.note ?? null,

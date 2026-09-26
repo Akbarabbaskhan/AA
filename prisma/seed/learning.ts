@@ -42,7 +42,33 @@ export type LearningSeedOptions = {
   attempts: number;
   attemptStudents: number;
   quizzes: number;
+  /**
+   * The student whose login the seed advertises.
+   *
+   * Quizzes and practice go to a fraction of the sections and students, so whether the demo
+   * account had a quiz to sit was luck — and it changed whenever the length of the attendance
+   * history shifted the PRNG stream, which is how the end-to-end test that sits a quiz came
+   * to fail on a Sunday. Named here, this student is always included.
+   */
+  demoStudentId?: string;
 };
+
+/**
+ * A sample that always contains what the demo needs.
+ *
+ * The required entries are taken first and the rest of the sample fills in behind them, so
+ * the size of the sample is unchanged and every other student is still chosen at random.
+ */
+function sampleIncluding<T>(
+  rng: Rng,
+  pool: readonly T[],
+  size: number,
+  required: readonly T[],
+): T[] {
+  const must = required.filter((entry) => pool.includes(entry));
+  const rest = pool.filter((entry) => !must.includes(entry));
+  return [...must, ...rng.sample(rest, Math.max(0, size - must.length))];
+}
 
 export type LearningSeedResult = {
   papers: number;
@@ -59,11 +85,39 @@ export type LearningSeedResult = {
 
 /** Topic lists per subject code. Real syllabus areas, so the weakness map reads like one. */
 export const SUBJECT_TOPICS: Record<string, readonly string[]> = {
-  '9701': ['Atomic Structure', 'Chemical Bonding', 'Energetics', 'Electrochemistry', 'Organic Chemistry', 'Equilibria'],
+  '9701': [
+    'Atomic Structure',
+    'Chemical Bonding',
+    'Energetics',
+    'Electrochemistry',
+    'Organic Chemistry',
+    'Equilibria',
+  ],
   '9702': ['Kinematics', 'Forces', 'Waves', 'Electric Fields', 'Quantum Physics', 'Thermodynamics'],
-  '9700': ['Cell Structure', 'Biological Molecules', 'Transport in Plants', 'Genetics', 'Photosynthesis', 'Infectious Disease'],
-  '9709': ['Quadratics', 'Trigonometry', 'Differentiation', 'Integration', 'Vectors', 'Probability'],
-  '9708': ['Scarcity and Choice', 'Price Elasticity', 'Market Failure', 'Macroeconomic Policy', 'Trade', 'Inflation'],
+  '9700': [
+    'Cell Structure',
+    'Biological Molecules',
+    'Transport in Plants',
+    'Genetics',
+    'Photosynthesis',
+    'Infectious Disease',
+  ],
+  '9709': [
+    'Quadratics',
+    'Trigonometry',
+    'Differentiation',
+    'Integration',
+    'Vectors',
+    'Probability',
+  ],
+  '9708': [
+    'Scarcity and Choice',
+    'Price Elasticity',
+    'Market Failure',
+    'Macroeconomic Policy',
+    'Trade',
+    'Inflation',
+  ],
   '9093': ['Language Analysis', 'Directed Writing', 'Text Comparison', 'Discursive Essay'],
   '9618': ['Data Representation', 'Networks', 'Algorithms', 'Databases', 'Security'],
   '9706': ['Double Entry', 'Depreciation', 'Partnerships', 'Ratio Analysis', 'Budgeting'],
@@ -89,7 +143,8 @@ export async function seedLearning(
 ): Promise<LearningSeedResult> {
   const t0 = Date.now();
   const mark = (label: string) => {
-    if (process.env['SEED_TIMING']) console.log(`    [learning] ${label} ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (process.env['SEED_TIMING'])
+      console.log(`    [learning] ${label} ${((Date.now() - t0) / 1000).toFixed(1)}s`);
   };
   const result: LearningSeedResult = {
     papers: 0,
@@ -110,7 +165,13 @@ export async function seedLearning(
   // -------------------------------------------------------------------------
   const currentYear = Number(options.today.slice(0, 4));
   const papers: Prisma.PastPaperCreateManyInput[] = [];
-  const paperIndex: { id: string; subjectId: string; subjectCode: string; componentCode: string; total: number }[] = [];
+  const paperIndex: {
+    id: string;
+    subjectId: string;
+    subjectCode: string;
+    componentCode: string;
+    total: number;
+  }[] = [];
 
   outer: for (let year = currentYear - 1; year >= currentYear - 8; year -= 1) {
     for (const session of SESSIONS) {
@@ -176,7 +237,12 @@ export async function seedLearning(
   }
 
   const candidateStudents = [...studentSubjects.keys()];
-  const practisers = rng.sample(candidateStudents, Math.min(options.attemptStudents, candidateStudents.length));
+  const practisers = sampleIncluding(
+    rng,
+    candidateStudents,
+    Math.min(options.attemptStudents, candidateStudents.length),
+    options.demoStudentId ? [options.demoStudentId] : [],
+  );
 
   type AttemptRow = {
     id: string;
@@ -202,7 +268,10 @@ export async function seedLearning(
     const improvement = rng.normal(0.9, 0.8, -0.6, 2.4);
     // Nudged above the mean because the floor at one attempt truncates the low tail, which
     // otherwise lands the total a little under the target every run.
-    const count = Math.max(1, Math.round(rng.normal(perStudent + 0.6, perStudent / 2, 1, perStudent * 2.5)));
+    const count = Math.max(
+      1,
+      Math.round(rng.normal(perStudent + 0.6, perStudent / 2, 1, perStudent * 2.5)),
+    );
     const chosen = rng.sample(eligible, Math.min(count, eligible.length));
 
     chosen.forEach((paper, index) => {
@@ -254,7 +323,10 @@ export async function seedLearning(
   // -------------------------------------------------------------------------
   // Question bank, quizzes, and attempts at them.
   // -------------------------------------------------------------------------
-  const questionsBySubject = new Map<string, { id: string; marks: number; topicTag: string; correct: string }[]>();
+  const questionsBySubject = new Map<
+    string,
+    { id: string; marks: number; topicTag: string; correct: string }[]
+  >();
   const questionRows: Prisma.QuestionCreateManyInput[] = [];
 
   for (const subject of options.subjects) {
@@ -310,43 +382,130 @@ export async function seedLearning(
    * attempt at everything, so whoever is showing Volt cannot actually sit a quiz — and a
    * class with nothing coming up is not a class anyone recognises.
    */
-  const quizSections = rng.sample(
-    options.sections.filter((section) => section.studentIds.length > 0),
+  const quizCandidates = options.sections.filter((section) => section.studentIds.length > 0);
+  const quizSections = sampleIncluding(
+    rng,
+    quizCandidates,
     Math.min(Math.ceil(options.quizzes / 2), options.sections.length),
+    options.demoStudentId
+      ? quizCandidates.filter((section) => section.studentIds.includes(options.demoStudentId!))
+      : [],
   );
 
   const quizQuestionRows: Prisma.QuizQuestionCreateManyInput[] = [];
   const quizAttemptRows: Prisma.QuizAttemptCreateManyInput[] = [];
   const quizAnswerRows: Prisma.QuizAnswerCreateManyInput[] = [];
-  const masteryTally = new Map<string, { schoolId: string; studentId: string; subjectId: string; topicTag: string; earned: number; possible: number; count: number }>();
+  const masteryTally = new Map<
+    string,
+    {
+      schoolId: string;
+      studentId: string;
+      subjectId: string;
+      topicTag: string;
+      earned: number;
+      possible: number;
+      count: number;
+    }
+  >();
 
   for (const [quizIndex, section] of quizSections.entries()) {
     const bank = questionsBySubject.get(section.subjectId);
     if (!bank || bank.length === 0) continue;
 
-    const picked = rng.sample(bank, Math.min(10, bank.length));
-    const openedAt = shiftDays(options.today, -(quizIndex * 3 + 2));
+    /*
+     * A term of topic checks in the demo student's own sections, and one everywhere else.
+     *
+     * The weakness map will not call a topic a weakness until it has eight answers behind it,
+     * which is the right rule and which one ten-question quiz cannot satisfy — so the
+     * advertised login used to open a map with every topic marked "not enough answers yet".
+     * Four rounds, a week apart, is what a term of use actually looks like.
+     */
+    const rounds =
+      options.demoStudentId && section.studentIds.includes(options.demoStudentId) ? 4 : 1;
 
-    const quiz = await prisma.quiz.create({
-      data: {
-        schoolId: options.schoolId,
-        sectionId: section.id,
-        createdById: section.teacherStaffId,
-        title: `Topic check ${quizIndex + 1}`,
-        timeLimitSeconds: 15 * 60,
-        attemptsAllowed: 1,
-        negativeMarking: false,
-        availableFrom: openedAt,
-        availableTo: shiftDays(options.today, 7),
-        showAnswersAfter: true,
-      },
-      select: { id: true },
-    });
-    result.quizzes += 1;
+    for (let round = 0; round < rounds; round += 1) {
+      const picked = rng.sample(bank, Math.min(10, bank.length));
+      const openedAt = shiftDays(options.today, -(quizIndex * 3 + 2 + round * 7));
 
-    picked.forEach((question, order) => {
-      quizQuestionRows.push({ quizId: quiz.id, questionId: question.id, order });
-    });
+      const quiz = await prisma.quiz.create({
+        data: {
+          schoolId: options.schoolId,
+          sectionId: section.id,
+          createdById: section.teacherStaffId,
+          title: `Topic check ${quizIndex + 1}${rounds > 1 ? ` — week ${round + 1}` : ''}`,
+          timeLimitSeconds: 15 * 60,
+          attemptsAllowed: 1,
+          negativeMarking: false,
+          availableFrom: openedAt,
+          availableTo: shiftDays(options.today, 7),
+          showAnswersAfter: true,
+        },
+        select: { id: true },
+      });
+      result.quizzes += 1;
+
+      picked.forEach((question, order) => {
+        quizQuestionRows.push({ quizId: quiz.id, questionId: question.id, order });
+      });
+
+      /*
+       * Roughly three quarters of a class sits a quiz that has been open a few days — the demo
+       * student among them, so their weakness map and quiz history are never empty. The quiz
+       * that has just opened is left untouched by everybody, which is the one they sit live.
+       */
+      const sitters = sampleIncluding(
+        rng,
+        section.studentIds,
+        Math.round(section.studentIds.length * 0.75),
+        options.demoStudentId ? [options.demoStudentId] : [],
+      );
+      for (const studentId of sitters) {
+        const attemptId = randomUUID();
+        const ability = rng.normal(0.62, 0.16, 0.15, 0.98);
+        let score = 0;
+
+        for (const question of picked) {
+          const correct = rng.bool(ability);
+          const marks = correct ? question.marks : 0;
+          score += marks;
+          quizAnswerRows.push({
+            attemptId,
+            questionId: question.id,
+            answerJson: correct ? question.correct : 'b',
+            isCorrect: correct,
+            marksAwarded: marks,
+            needsManualMarking: false,
+          });
+
+          const key = `${studentId}:${section.subjectId}:${question.topicTag}`;
+          const tally = masteryTally.get(key) ?? {
+            schoolId: options.schoolId,
+            studentId,
+            subjectId: section.subjectId,
+            topicTag: question.topicTag,
+            earned: 0,
+            possible: 0,
+            count: 0,
+          };
+          tally.earned += marks;
+          tally.possible += question.marks;
+          tally.count += 1;
+          masteryTally.set(key, tally);
+        }
+
+        quizAttemptRows.push({
+          id: attemptId,
+          schoolId: options.schoolId,
+          quizId: quiz.id,
+          studentId,
+          startedAt: openedAt,
+          submittedAt: new Date(openedAt.getTime() + rng.int(6, 15) * 60_000),
+          score,
+          // A handful of high counts, so the teacher's flag list is not empty in the demo.
+          tabSwitches: rng.bool(0.05) ? rng.int(5, 12) : rng.int(0, 2),
+        });
+      }
+    }
 
     const fresh = await prisma.quiz.create({
       data: {
@@ -367,55 +526,6 @@ export async function seedLearning(
     rng.sample(bank, Math.min(8, bank.length)).forEach((question, order) => {
       quizQuestionRows.push({ quizId: fresh.id, questionId: question.id, order });
     });
-
-    // Roughly three quarters of a class sits a quiz that has been open a few days.
-    const sitters = rng.sample(section.studentIds, Math.round(section.studentIds.length * 0.75));
-    for (const studentId of sitters) {
-      const attemptId = randomUUID();
-      const ability = rng.normal(0.62, 0.16, 0.15, 0.98);
-      let score = 0;
-
-      for (const question of picked) {
-        const correct = rng.bool(ability);
-        const marks = correct ? question.marks : 0;
-        score += marks;
-        quizAnswerRows.push({
-          attemptId,
-          questionId: question.id,
-          answerJson: correct ? question.correct : 'b',
-          isCorrect: correct,
-          marksAwarded: marks,
-          needsManualMarking: false,
-        });
-
-        const key = `${studentId}:${section.subjectId}:${question.topicTag}`;
-        const tally = masteryTally.get(key) ?? {
-          schoolId: options.schoolId,
-          studentId,
-          subjectId: section.subjectId,
-          topicTag: question.topicTag,
-          earned: 0,
-          possible: 0,
-          count: 0,
-        };
-        tally.earned += marks;
-        tally.possible += question.marks;
-        tally.count += 1;
-        masteryTally.set(key, tally);
-      }
-
-      quizAttemptRows.push({
-        id: attemptId,
-        schoolId: options.schoolId,
-        quizId: quiz.id,
-        studentId,
-        startedAt: openedAt,
-        submittedAt: new Date(openedAt.getTime() + rng.int(6, 15) * 60_000),
-        score,
-        // A handful of high counts, so the teacher's flag list is not empty in the demo.
-        tabSwitches: rng.bool(0.05) ? rng.int(5, 12) : rng.int(0, 2),
-      });
-    }
   }
 
   for (let index = 0; index < quizQuestionRows.length; index += 1000) {
@@ -430,14 +540,16 @@ export async function seedLearning(
   result.quizAttempts = quizAttemptRows.length;
   mark('quizzes');
 
-  const masteryRows: Prisma.TopicMasteryCreateManyInput[] = [...masteryTally.values()].map((tally) => ({
-    schoolId: tally.schoolId,
-    studentId: tally.studentId,
-    subjectId: tally.subjectId,
-    topicTag: tally.topicTag,
-    score: Math.round((tally.earned / Math.max(1, tally.possible)) * 10_000),
-    sampleSize: tally.count,
-  }));
+  const masteryRows: Prisma.TopicMasteryCreateManyInput[] = [...masteryTally.values()].map(
+    (tally) => ({
+      schoolId: tally.schoolId,
+      studentId: tally.studentId,
+      subjectId: tally.subjectId,
+      topicTag: tally.topicTag,
+      score: Math.round((tally.earned / Math.max(1, tally.possible)) * 10_000),
+      sampleSize: tally.count,
+    }),
+  );
   for (let index = 0; index < masteryRows.length; index += 2000) {
     await prisma.topicMastery.createMany({ data: masteryRows.slice(index, index + 2000) });
   }
@@ -486,7 +598,8 @@ export async function seedLearning(
   mark('resources');
 
   const assignmentRows: Prisma.AssignmentCreateManyInput[] = [];
-  const assignmentIndex: { id: string; studentIds: string[]; dueAt: Date; totalMarks: number }[] = [];
+  const assignmentIndex: { id: string; studentIds: string[]; dueAt: Date; totalMarks: number }[] =
+    [];
 
   for (const section of options.sections) {
     if (section.studentIds.length === 0) continue;
@@ -529,7 +642,8 @@ export async function seedLearning(
       if (rng.bool(0.12)) continue;
       const late = rng.bool(0.15);
       const submittedAt = new Date(
-        assignment.dueAt.getTime() + (late ? rng.int(1, 48) * 3_600_000 : -rng.int(1, 72) * 3_600_000),
+        assignment.dueAt.getTime() +
+          (late ? rng.int(1, 48) * 3_600_000 : -rng.int(1, 72) * 3_600_000),
       );
       const graded = rng.bool(0.6);
       submissionRows.push({

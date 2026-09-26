@@ -69,6 +69,20 @@ describe('finance read budgets', () => {
     expect(value).toBeLessThan(BUDGET_MS);
   });
 
+  it('lists a filtered ledger inside the budget', async () => {
+    /*
+     * The expensive shape, and the one the bursar actually uses: status and aging are derived
+     * from the balance and the clock, so this cannot be a `take` on the query — it reads the
+     * scope, derives, and takes its page afterwards. If that ever stops being fast, the fix is
+     * to push the derivation into SQL, not to page before filtering: paging first returns the
+     * wrong rows.
+     */
+    const value = await p95('invoice list (unpaid)', () =>
+      asActor(bursar, () => listInvoices(bursar, { status: 'OVERDUE', limit: 100 })),
+    );
+    expect(value).toBeLessThan(BUDGET_MS);
+  });
+
   it('builds the defaulter list inside the budget', async () => {
     const value = await p95('defaulters', () =>
       asActor(bursar, () => getDefaulters(bursar, { minOutstanding: 0, limit: 500 })),

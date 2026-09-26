@@ -168,6 +168,21 @@ enum CareerItemType {
   SCHOLARSHIP
   RESOURCE
   EVENT
+  /// Where last year's cohort ended up. Students read this obsessively.
+  ALUMNI
+}
+
+enum DocumentRequestType {
+  TRANSCRIPT
+  RECOMMENDATION
+  CHARACTER_CERTIFICATE
+}
+
+enum DocumentRequestStatus {
+  REQUESTED
+  IN_PROGRESS
+  READY
+  DECLINED
 }
 
 enum ImportJobType {
@@ -278,6 +293,7 @@ model School {
   badges          Badge[]
   housePoints     HousePoint[]
   documents       DocumentLockerItem[]
+  documentRequests DocumentRequest[]
   bookingSlots    BookingSlot[]
   impersonations  ImpersonationSession[]
 
@@ -506,6 +522,7 @@ model Student {
   invoices          Invoice[]
   discounts         Discount[]
   societyMemberships SocietyMember[]
+  documentRequests   DocumentRequest[]
   badges            StudentBadge[]
   housePoints       HousePoint[]
   doubtThreads      DoubtThread[]
@@ -583,6 +600,7 @@ model Staff {
   submissionsGraded  Submission[]
   quizzes            Quiz[]
   societiesAdvised   Society[]
+  documentRequests   DocumentRequest[]
   syllabusCoverage   SyllabusCoverage[]
   substitutionsFor   Substitution[]      @relation("SubstitutionOriginal")
   substitutionsAs    Substitution[]      @relation("SubstitutionCover")
@@ -906,6 +924,14 @@ model AttendanceRecord {
   academicYearId String           @map("academic_year_id")
   sessionId      String           @map("session_id")
   studentId      String           @map("student_id")
+  /// The session's date, copied onto the record.
+  ///
+  /// Not a second source of truth: a session's identity is (section, date, period), so its
+  /// date never changes, and every writer takes this from the session it is writing under.
+  /// It is here because "which days was this student present" otherwise needs a join across
+  /// six hundred thousand rows — the leaderboard's attendance streak measured 1.5s that way
+  /// and 40ms with an index on (student_id, date).
+  date           DateTime         @map("date") @db.Date
   status         AttendanceStatus
   minutesLate    Int?             @map("minutes_late")
   note           String?
@@ -924,6 +950,7 @@ model AttendanceRecord {
 
   @@unique([sessionId, studentId])
   @@index([studentId, status])
+  @@index([studentId, date])
   @@index([schoolId, academicYearId])
   @@map("attendance_records")
 }
@@ -1838,6 +1865,41 @@ model HousePoint {
   @@map("house_points")
 }
 
+/// Transcript and recommendation-letter requests, "routed to the relevant teacher and
+/// tracked to completion". The tracking is the feature: a request nobody can chase is the
+/// thing students ring the office about.
+model DocumentRequest {
+  id           String                @id @default(uuid())
+  schoolId     String                @map("school_id")
+  studentId    String                @map("student_id")
+  type         DocumentRequestType
+  /// The teacher a recommendation is addressed to. Null for a transcript, which the
+  /// office produces rather than any one member of staff.
+  assignedToId String?               @map("assigned_to")
+  /// Where it is going: "LUMS", "UCAS", "University of Toronto".
+  destination  String
+  /// The student's own note to whoever is writing it.
+  note         String?
+  deadline     DateTime?             @db.Date
+  status       DocumentRequestStatus @default(REQUESTED)
+  /// Set when fulfilled; points at the locker item that was produced.
+  lockerItemId String?               @unique @map("locker_item_id")
+  declineReason String?              @map("decline_reason")
+  decidedAt    DateTime?             @map("decided_at")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+
+  school     School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student    Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assignedTo Staff?              @relation(fields: [assignedToId], references: [id])
+  lockerItem DocumentLockerItem? @relation(fields: [lockerItemId], references: [id])
+
+  @@index([schoolId, status])
+  @@index([assignedToId, status])
+  @@index([studentId, createdAt])
+  @@map("document_requests")
+}
+
 /// Result cards, certificates, transcripts, character certificates.
 model DocumentLockerItem {
   id        String   @id @default(uuid())
@@ -1850,6 +1912,8 @@ model DocumentLockerItem {
 
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  documentRequest DocumentRequest?
 
   @@index([schoolId, userId])
   @@map("document_locker_items")

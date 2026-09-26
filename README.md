@@ -143,8 +143,11 @@ spec, develop against the neutral Volt theme and switch the LGS theme on only fo
 
 ## The seed is a deliverable
 
-`npm run db:seed` builds the demo tenant in **under 60 seconds**, idempotently (it
-rebuilds rather than duplicating, and the PRNG is seeded so two runs are identical):
+`npm run db:seed` builds the demo tenant in **under 60 seconds** — 40s on an empty database,
+59s when it is replacing an existing tenant and paying for the cascade — idempotently (it
+rebuilds rather than duplicating, and the PRNG is seeded so two runs are identical). Run it
+with `SEED_TIMING=1` and it reports where the minute went, which is the only way that budget
+has survived five milestones:
 
 | | |
 | --- | --- |
@@ -155,16 +158,22 @@ rebuilds rather than duplicating, and the PRNG is seeded so two runs are identic
 | Enrolments | 6,235 — students take 3–4 subjects, not all twelve |
 | Timetable | 872 slots over a 6-day, 8-period week, **provably clash-free** |
 | Academic years | 2025–26 and 2026–27, exactly one current |
-| Attendance | 583,166 records over 147 school days, 91.7% average, with chronic absentees to find |
+| Attendance | 597,639 records over 152 school days, 91.8% average, with chronic absentees to find |
 | Exams | 3 series, 2,493 papers, 71,469 marks on a realistic curve; two published, the latest left in draft for the demo to publish live |
 | Past papers | 400 across 8 years, 3 sessions and 3 variants, with mark schemes |
 | Practice | 326 timed attempts by 60 students, so the grade trend has a trend in it |
-| Quizzes | 40 — one already sat per section, one that has just opened, so there is something to actually do |
+| Quizzes | 49 — one already sat per section and one that has just opened, plus a term of weekly topic checks in the demo student's own sections, so the weakness map has enough answers to say anything |
 | Question bank | 336 topic-tagged questions, and 2,096 topic mastery rows behind the weakness map |
 | Assignments | 436 with 5,500 submissions, some late, some ungraded, some missing |
 | Fees | 12,000 invoices over 6 months, 9,500 payments, 95.6% of what is due collected, ~460 families behind across every aging bucket |
 | Concessions | 167 sibling, scholarship and staff-child discounts, each with an approver |
 | Meetings | 72 parents' evening slots across six teachers |
+| Societies | 8, with 497 memberships and 24 student officers — two of them selective, so there are applications to admit |
+| Events | 8, deliberately oversubscribed: 299 replies and 37 students on waitlists |
+| House points | 182 awards and deductions across four houses, every one with a reason and an awarder |
+| Badges | 5 definitions, 75 earned by the sweep from real effort — none of them for attainment |
+| Career corner | 22 scholarships, university deadlines and alumni notes (LUMS, NUST, UCAS among them) |
+| Documents | 12 requests across all four states, with reference letters and transcripts filed into lockers |
 
 ### How the timetable is clash-free
 
@@ -211,8 +220,8 @@ full fee cycle.
 | **M2 Academics** | Exam series, component weighting, marks entry grid, moderation, publication, result card PDFs, student and teacher analytics | **Complete** |
 | **M3 Learning** | Past paper vault, practice engine, quiz engine with auto-marking and topic mastery, assignments, resources, doubt threads | **Complete** |
 | **M4 Fees and parents** | Fee structures, bulk invoicing, bank-format vouchers, payments, discounts, defaulter aging, statement reconciliation, parent portal in Urdu, channel-agnostic notifications | **Complete** |
-| M5 Student life | Societies, events, effort leaderboards, careers, digital ID | Next |
-| M6 Harden and pilot | Performance pass, security review, backup drill, audit log UI, year-end rollover | |
+| **M5 Student life** | Societies with officer roles, events with waitlists, one campus calendar, effort leaderboards and house points, badges, the career corner with transcript requests, digital ID cards and the document locker | **Complete** |
+| M6 Harden and pilot | Performance pass, security review, backup drill, audit log UI, year-end rollover | Next |
 
 ### What M0 delivers
 
@@ -541,6 +550,120 @@ request once it started notifying guardians, because it called `notify()` once p
 a bulk path that reads preferences once and writes every row in one insert took the whole
 seed back inside its 60-second budget.
 
+### What M5 delivers
+
+The milestone the spec is most careful about, because it is the one that can do harm.
+"Leaderboards are the obvious idea and the easy way to cause harm. The rule: rank effort,
+never grades." So the recognition module can only count things a student chose to do —
+papers attempted, quizzes sat, days present, societies joined — and there is no code path in
+it that reads a mark. Not a convention: `lib/services/recognition` has no `score` or
+`percent` in any of its types, so ranking by attainment would have to add the concept rather
+than reuse it, and a unit test fails if a metric or a badge so much as mentions a grade.
+
+**Every student can opt out of any public list, and the setting is honoured as a query
+predicate** — opted-out students are excluded from the rows *and* from the ranking, so
+opting out does not silently inflate everybody else's position. They still see their own
+figure, because opting out of a public list is not opting out of knowing how you are doing.
+House standings are a whole-group total with nobody on display, which is why schools run
+them.
+
+**Societies** carry officer roles, and a society is run by its officers rather than by
+whoever has an admin password: a student head can admit applicants and manage members, a
+selective society records an application rather than a membership (so "applied" never
+inflates a member count), and an officer cannot quietly leave the society they run.
+**Events** have capacity, and capacity is counted inside the transaction that books the
+place — two students tapping at once cannot both take the last seat. A full event puts you
+on the waitlist with your position; a cancellation promotes the first person on it and tells
+them.
+
+**One campus calendar** unions five sources — holidays, exam papers, assignment deadlines,
+events and fee due dates — with a personal filter that narrows it to this person's own
+subjects and societies, in the URL so it survives a reload and can be sent to somebody.
+
+**The career corner** carries the scholarships, university deadlines and alumni notes an A
+Level student in Pakistan actually needs (LUMS, NUST, UCAS), soonest first with a countdown,
+and a reminder batched to the leaving cohort rather than the whole school. A **document
+request** — transcript, reference, character certificate — goes to the named teacher or to
+the office, one open request per destination, and marking it ready files the document into
+the student's locker in the same transaction. A decline needs a reason, and the student is
+told what it is.
+
+**The digital ID card** is the piece worth reading the code for. A QR containing a roll
+number is forgeable by anybody with a keyboard, so the card carries a **signed** token
+instead — roll number, expiry, HMAC — verified server-side by a member of staff. The token
+contains no name, no photo and no class, because a QR photographed off a lanyard in a
+corridor should hand a stranger nothing, and a scan returns exactly enough to recognise the
+person in front of you: name, roll number, class, photo. Nothing about marks, fees or
+family. Cards are re-signed daily, so a screenshot shared with a friend stops working.
+
+**The document locker** is the student's own property: result cards, transcripts,
+certificates, every one a short-lived signed URL minted per read. Result cards are folded in
+live from the published snapshot rather than copied, so the locker cannot drift from the
+marks. Parents reach their child's locker too — a character certificate the night before a
+deadline is as often a parent's errand as a student's.
+
+And the student dashboard finally answers the spec's own test: **"a student with no test due
+this week still has a reason to open the app."** It opens on what is coming up, what they
+did this week against the goal they set themselves, and where that puts them.
+
+### Performance, measured
+
+Against the seeded campus — 2,000 students, 597,000 attendance records, eight societies and
+a term of house points:
+
+| Endpoint | Budget | Measured (p95) |
+| --- | --- | --- |
+| Society directory | < 300ms | 5ms |
+| One society, with its members and applications | < 300ms | 14ms |
+| Event list | < 300ms | 6ms |
+| Attendees and waitlist | < 300ms | 6ms |
+| Whole campus calendar (five sources unioned) | < 300ms | 13ms |
+| Personal calendar | < 300ms | 5ms |
+| Effort leaderboard (papers, quizzes, societies) | < 300ms | 51–65ms |
+| Effort leaderboard (attendance streak, 30 days) | < 300ms | 133ms |
+| Effort leaderboard (attendance streak, a year) | < 300ms | 119ms |
+| House standings | < 300ms | 1ms |
+| Career corner | < 300ms | 2ms |
+| The office's document queue | < 300ms | 5ms |
+| Profile, ID card, locker | < 300ms | 2–5ms |
+| Leaderboard, 30 students at once | < 5s | 484ms |
+
+One of those is worth the paragraph, because the first version of it was both slow and
+quietly wrong. The attendance streak — consecutive school days present — was written as one
+aggregate over every register in the window: 1,352ms for a year, with an external merge sort
+spilling 34MB to disk, and **no `school_id` predicate**, because raw SQL is outside the
+tenancy extension's reach. It is now two thousand small index scans, one per student: the most
+recent day they were not fully present, then the days since. That needs the session's date on
+the record rather than a join away, so the date is denormalised onto `attendance_records`
+behind one index — the record's date is the register's date by definition, and every writer
+takes it from the session it is writing under. 1,352ms became 145ms, and `school_id` is bound
+on every table in the statement.
+
+Two curiosities came out of that. Postgres costs the nested-loop plan at well over
+`jit_above_cost` and then spends 300ms compiling machine code for a query that runs in 60, so
+the statement asks for `SET LOCAL jit = off` — measured, not guessed. And the same query took
+fifteen seconds the first time the seed ran it, because half a million rows had just been
+inserted and the planner had no statistics yet; the bulk loader now `ANALYZE`s what it wrote,
+which is what a bulk loader should do anyway.
+
+And an M5 end-to-end test found the oldest bug in the repository, in M0's service worker. It
+cached everything that was not an API call and not a document — which quietly included the
+data payloads the App Router fetches for a soft navigation or a `router.refresh()`, whose URLs
+are keyed by the router's state rather than by the moment. So the *first* refresh after a write
+came from the network and the second one came from the cache: a student who left a society was
+still told they were in it, an officer who admitted two applicants saw one, and nothing
+anywhere reported an error, because every request had returned 200. Every screen in the app was
+affected; it took a test that wrote twice in one session to see it. The worker is now
+cache-first only for content-hashed build output and network-first for everything else, which
+is what "stale data is worse than an error" already said about `/api/`.
+
+M5's discipline also found a bug in M4's ledger. Invoice status and aging are derived from the
+balance and the clock rather than stored, and the filter was applied *after* the database had
+taken its page — so `?status=UNPAID&limit=5` returned the unpaid ones among the newest five
+invoices, which against a settled month is none at all. The filter now runs over the whole
+scope, on three cheap queries that read only the money columns, and takes its page afterwards:
+163ms, and the rules that decide what "overdue" means are still the ones in `money.ts`.
+
 ### Deliberately not built
 
 Library, transport, hostel, payroll and biometric hardware modules. Every competitor in
@@ -571,8 +694,8 @@ Where Chromium is provisioned outside Playwright (locked-down CI images), point
 | Layer | Tool | What it covers |
 | --- | --- | --- |
 | Unit | Vitest | **Grading** (component weighting, boundary arithmetic, class statistics, outliers, percentile), **attendance percentages**, the lock window, offline conflict resolution and **timetable clash logic** — the four the spec requires to be near 100%, because wrong answers there are invisible and expensive. Plus CSV parsing, column mapping and import date handling |
-| Integration | Vitest + real Postgres | Tenancy enforcement, permission boundaries, the register and offline sync, the import acceptance criterion, the full exam cycle from setup to PDF, the whole learning module end to end, the finance integrity rules, notification batching and quiet hours against a recording provider, the parent portal's scope, the seed's own invariants, and the read budgets as assertions rather than as a one-off measurement |
-| E2E | Playwright | The demo-script flows on a mobile viewport, including marking a register in airplane mode and watching it sync, sitting a quiz, a timed practice attempt proving the mark scheme stays locked, the bursar's day from ledger to reconciliation, the parent portal switching to Urdu and laying out right to left, and a per-role 403 matrix over the real HTTP stack |
+| Integration | Vitest + real Postgres | Tenancy enforcement, permission boundaries, the register and offline sync, the import acceptance criterion, the full exam cycle from setup to PDF, the whole learning module end to end, the finance integrity rules, notification batching and quiet hours against a recording provider, the parent portal's scope, societies and event capacity, the effort leaderboard's opt-out and the badge sweep's idempotence, transcript requests through to the locker, the seed's own invariants, and the read budgets as assertions rather than as a one-off measurement |
+| E2E | Playwright | The demo-script flows on a mobile viewport, including marking a register in airplane mode and watching it sync, sitting a quiz, a timed practice attempt proving the mark scheme stays locked, the bursar's day from ledger to reconciliation, the parent portal switching to Urdu and laying out right to left, joining a society, an RSVP that lands on a waitlist, an ID card scanned and verified by a member of staff, a transcript request carried from the student to the office and back into the locker, and a per-role 403 matrix over the real HTTP stack |
 
 Both suites run against a single shared database, so both are configured to run
 sequentially. Parallel files racing over the same tenant is a flake factory.
@@ -587,7 +710,22 @@ after, which reads exactly like a pass. For the same reason the seed's documente
 login is a guardian with **two** children: the child-switcher test used to skip on a
 one-child account, and a switcher demoed with nothing to switch between is not a demo.
 
-**547 unit and integration tests, 134 end-to-end across mobile and desktop, zero skips.**
+M5 finished that job. Four end-to-end tests still skipped themselves when the demo student
+happened to have no quiz, no assignment or too few answers for a weakness map — and that
+"happened to" was the PRNG: quizzes go to a fraction of the sections, and which fraction
+moved whenever the length of the attendance history shifted the random stream, so the suite
+quietly stopped testing the quiz engine one day and nobody would have known. The seed now
+takes the advertised student's own sections first and gives them a term of weekly topic
+checks, and those four tests assert instead of skipping. **There are no conditional skips
+left in the suite.**
+
+The same class of flake had two more instances, both fixed in the tests rather than papered
+over: a register test that failed every Sunday because a school has no classes on a Sunday
+(it now asserts the designed empty state and opens a real register by URL), and two
+notification tests that failed whenever the suite ran after 21:00 Karachi time because a
+flush dated inside quiet hours correctly withholds everything but in-app.
+
+**643 unit and integration tests, 162 end-to-end across mobile and desktop, zero skips.**
 
 ---
 
@@ -640,6 +778,35 @@ reference of `TRXREC1` produced `20260000031` — which contains the sequence of
 different voucher. It compares contiguous digit runs now, with a unit test pinning it. The
 ambiguity margin meant it was proposed rather than auto-posted, which is the whole reason
 that margin exists.
+
+M5 adds public lists, a scannable ID and a document locker — three new ways to expose a
+child. The leaderboard shows **first names only**, never a full directory, and never a rank
+by attainment; the opt-out is a query predicate rather than a filter over results, so it
+holds on the second page as well as the first. The ID card's QR carries a signed token
+rather than a roll number, and verifying one is staff-only: a student holding that endpoint
+could enumerate the roll numbers of the campus. A scan returns four fields — name, roll
+number, class, photo — asserted as exactly those, so a future addition cannot quietly leak a
+fee balance to a gate. A student cannot open another student's locker, profile, badge case or
+ID card by id, asserted over the real HTTP stack with a classmate's id taken from a list they
+are allowed to see. Parents hold `document.read.children` and only ever reach their own
+children's documents.
+
+Two of M5's own mistakes are worth naming, because in both cases the code looked right.
+
+The attendance-streak leaderboard was written as raw SQL for speed and **shipped without a
+`school_id` predicate** — outside the tenancy extension's reach, which is exactly the trap
+M4's collection report documented and this one walked into anyway. It is bound now, and the
+rule is no longer a comment: a test parses every raw statement in `lib/` and `app/` and fails
+if one reads a tenant table without binding `school_id`, or if anything is interpolated into
+`$executeRawUnsafe`. A grep is a poor substitute for a type and a far better one than a code
+review six months from now.
+
+And the ID card's QR encoder was hand-rolled. It produced a grid that differed from a
+reference implementation in **645 of 1,369 modules** — a code no scanner would have read,
+with nothing in the app to say so, on the one screen whose entire job is to be scanned. It
+uses a real encoder now, pinned by a test that decodes the QR back to the token it signed,
+and by a second test that asserts the rendered SVG actually carries a width and a height —
+because the first attempt at the fix silently stripped them and rendered an invisible card.
 
 Scheduled for M6: the full security review, encryption at rest, and the backup and restore
 drill. Do not go live at a school before those pass.

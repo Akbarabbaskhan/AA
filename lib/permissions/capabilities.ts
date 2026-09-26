@@ -93,6 +93,19 @@ export const CAPABILITIES = [
   'event.manage',
   'career.read',
   'career.manage',
+  'housepoint.award',
+  'badge.manage',
+  /** Reading one's own locker. A student's certificates are their own property. */
+  'document.read.own',
+  /**
+   * A parent fetching their child's certificates. Separate from `document.read.own` because
+   * a parent has no locker of their own, and because the row scope differs: this one is only
+   * ever exercised against a student the actor is a guardian of.
+   */
+  'document.read.children',
+  'document.manage',
+  'transcript.request',
+  'transcript.fulfil',
 
   // Reporting
   'report.section',
@@ -124,6 +137,8 @@ const STUDENT: readonly Capability[] = [
   'society.join',
   'event.rsvp',
   'career.read',
+  'document.read.own',
+  'transcript.request',
 ];
 
 /** Parents have no write access to anything academic. */
@@ -137,6 +152,11 @@ const PARENT: readonly Capability[] = [
   'leave.request',
   'announcement.read',
   'event.rsvp',
+  /*
+   * A character certificate at 11pm the night before a deadline is as often a parent's
+   * errand as a student's, and the parent portal already serves this child's result cards.
+   */
+  'document.read.children',
 ];
 
 const TEACHER: readonly Capability[] = [
@@ -163,6 +183,8 @@ const TEACHER: readonly Capability[] = [
   'society.read',
   'event.manage',
   'career.read',
+  'housepoint.award',
+  'transcript.fulfil',
   'report.section',
   'predictedgrade.set',
   'leave.approve',
@@ -233,6 +255,12 @@ const ADMIN: readonly Capability[] = [
   'event.manage',
   'career.read',
   'career.manage',
+  'housepoint.award',
+  'badge.manage',
+  'document.read.own',
+  'document.read.children',
+  'document.manage',
+  'transcript.fulfil',
   'report.section',
   'report.department',
   'report.school',

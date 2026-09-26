@@ -11,6 +11,9 @@ import { getFoundationSummary } from '@/lib/services/foundation';
 import { getSchoolSettings } from '@/lib/services/school-settings';
 import { getTimetable } from '@/lib/services/timetable';
 import { getChildren, getParentHome } from '@/lib/services/parents';
+import { getCalendar } from '@/lib/services/calendar';
+import { getPracticeGoal } from '@/lib/services/papers/practice';
+import { getLeaderboard } from '@/lib/services/recognition';
 import { ParentHomeScreen } from '@/components/features/parents/parent-home';
 import { can, hasRole, primaryRoleOf } from '@/lib/permissions';
 import { zonedDateString } from '@/lib/utils/tz';
@@ -33,13 +36,17 @@ export default async function DashboardPage({
   searchParams?: { studentId?: string };
 }) {
   const actor = await requireSessionActor();
-  const [t, tNav, tAttendance, tRoles, tParents] = await Promise.all([
-    getTranslations('dashboard'),
-    getTranslations('nav'),
-    getTranslations('attendance'),
-    getTranslations('roles'),
-    getTranslations('parents'),
-  ]);
+  const [t, tNav, tAttendance, tRoles, tParents, tCalendar, tPractice, tRecognition] =
+    await Promise.all([
+      getTranslations('dashboard'),
+      getTranslations('nav'),
+      getTranslations('attendance'),
+      getTranslations('roles'),
+      getTranslations('parents'),
+      getTranslations('calendar'),
+      getTranslations('practice'),
+      getTranslations('recognition'),
+    ]);
 
   return withActor(actor, async () => {
     const settings = await getSchoolSettings();
@@ -130,12 +137,22 @@ export default async function DashboardPage({
       return <ParentHomeScreen home={home} students={children} />;
     }
 
-    // Student: the numbers, and what is next.
+    // Student: the numbers, what is next, and what is happening around campus.
     const studentId = actor.studentId ?? actor.childStudentIds[0];
     if (studentId) {
-      const [attendance, timetable] = await Promise.all([
+      const [attendance, timetable, upcoming, goal, board] = await Promise.all([
         getStudentAttendance(actor, studentId),
         getTimetable(actor, { studentId, date: today }),
+        /*
+         * "Around campus" and "Upcoming" — the two sections of the spec's student dashboard
+         * that make the acceptance criterion reachable: "a student with no test due this
+         * week still has a reason to open the app."
+         */
+        getCalendar(actor, { mineOnly: true, from: today }),
+        actor.studentId ? getPracticeGoal(actor) : Promise.resolve(null),
+        actor.studentId
+          ? getLeaderboard(actor, { metric: 'PAPERS', windowDays: 30, limit: 3 })
+          : Promise.resolve(null),
       ]);
 
       const nowMinutes = new Date().getUTCHours() * 60 + new Date().getUTCMinutes();
@@ -186,9 +203,72 @@ export default async function DashboardPage({
             </CardContent>
           </Card>
 
-          <Button asChild variant="secondary">
-            <Link href="/timetable">{tNav('timetable')}</Link>
-          </Button>
+          {/*
+            Upcoming, inside the next fortnight. The spec's order: tests and deadlines
+            before anything social, with the social right behind it rather than absent.
+          */}
+          {upcoming.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>{tCalendar('title')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="flex flex-col gap-2" data-testid="dashboard-upcoming">
+                  {upcoming.slice(0, 6).map((entry) => (
+                    <li key={entry.id} className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="flex min-w-0 items-baseline gap-2">
+                        <span className="shrink-0 text-small text-[var(--text-tertiary)]">
+                          {tCalendar(`kind${entry.kind}`)}
+                        </span>
+                        <span className="truncate text-body text-[var(--text-primary)]">
+                          {entry.title}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-small text-[var(--text-tertiary)]">
+                        {entry.date}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {/* Your numbers: effort against the goal the student set themselves. */}
+          {goal ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>{tPractice('goal')}</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-wrap items-baseline justify-between gap-3">
+                <span className="text-h2 text-[var(--text-primary)]" data-testid="dashboard-goal">
+                  {tPractice('goalSet', { done: goal.thisWeek, goal: goal.goalPerWeek })}
+                </span>
+                <span className="text-small text-[var(--text-tertiary)]">
+                  {goal.streakWeeks > 0
+                    ? tPractice('streak', { weeks: goal.streakWeeks })
+                    : tPractice('streakNone')}
+                </span>
+                {board?.myRank ? (
+                  <span className="text-small text-[var(--text-secondary)]">
+                    {tRecognition('yourPosition', { rank: board.myRank, count: board.myCount })}
+                  </span>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="secondary">
+              <Link href="/timetable">{tNav('timetable')}</Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link href="/events">{tNav('events')}</Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link href="/papers">{tNav('papers')}</Link>
+            </Button>
+          </div>
         </div>
       );
     }

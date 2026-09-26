@@ -2,7 +2,12 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { headers } from 'next/headers';
 import { withTenant } from '@/lib/db';
 import { requireSessionActor } from '@/lib/auth/session';
-import { requireCapability, type Actor, type Capability } from '@/lib/permissions';
+import {
+  requireAnyCapability,
+  requireCapability,
+  type Actor,
+  type Capability,
+} from '@/lib/permissions';
 import { toErrorResponse } from './errors';
 
 export type RouteContext<P = Record<string, string>> = {
@@ -21,13 +26,14 @@ export type RouteContext<P = Record<string, string>> = {
  * every request, for every route.
  */
 export function route<P = Record<string, string>>(
-  options: { capability?: Capability },
+  options: { capability?: Capability; anyCapability?: readonly Capability[] },
   handler: (context: RouteContext<P>) => Promise<NextResponse | unknown>,
 ) {
   return async (request: NextRequest, segment: { params: P }): Promise<NextResponse> => {
     try {
       const actor = await requireSessionActor();
       if (options.capability) requireCapability(actor, options.capability);
+      if (options.anyCapability) requireAnyCapability(actor, options.anyCapability);
 
       const headerList = headers();
       const result = await withTenant(

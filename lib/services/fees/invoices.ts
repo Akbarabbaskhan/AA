@@ -93,7 +93,10 @@ export type BulkInvoiceResult = {
  * Voucher numbers come from one counting query inside the transaction. Two bursars
  * pressing the button at the same moment is a real scenario in an accounts office.
  */
-export async function generateInvoices(actor: Actor, raw: z.infer<typeof bulkInvoiceSchema>): Promise<BulkInvoiceResult> {
+export async function generateInvoices(
+  actor: Actor,
+  raw: z.infer<typeof bulkInvoiceSchema>,
+): Promise<BulkInvoiceResult> {
   requireCapability(actor, 'fee.manage');
   const input = bulkInvoiceSchema.parse(raw);
 
@@ -284,32 +287,53 @@ export const invoiceQuerySchema = z.object({
  * Status and aging are computed from the balance and the clock rather than read from the
  * stored column, so an invoice that fell overdue at midnight is overdue at 9am without a
  * nightly job having had to run successfully.
+ *
+ * Which is why a status or aging filter cannot be a `take` on the query: filtering a page of
+ * rows after the database has already chosen them returns "the matching ones among the newest
+ * hundred", not "the newest hundred matching" — and when the newest hundred happen to be paid
+ * it returns nothing at all, which is how `?status=UNPAID&limit=5` came back empty against a
+ * ledger with four hundred families behind.
+ *
+ * So a derived filter runs in two passes: the whole scope is read with only the columns the
+ * money rules need (no names, no year groups, no rooms), derived, filtered and paged — and
+ * only that page is then loaded in full. One implementation of the rules, in TypeScript, and
+ * 30ms instead of the 900ms it costs to hydrate the entire ledger to throw most of it away.
  */
 export async function listInvoices(
   actor: Actor,
   query: z.infer<typeof invoiceQuerySchema>,
 ): Promise<InvoiceRow[]> {
   const scope = await invoiceScope(actor, query.studentId);
+  const isDerivedFilter = Boolean(query.status || query.bucket);
+
+  const where = {
+    ...scope,
+    ...(query.academicYearId ? { academicYearId: query.academicYearId } : {}),
+    ...(query.periodLabel ? { periodLabel: query.periodLabel } : {}),
+    ...(query.yearGroupId
+      ? { student: { enrolments: { some: { section: { yearGroupId: query.yearGroupId } } } } }
+      : {}),
+    ...(query.search
+      ? {
+          OR: [
+            { voucherNumber: { contains: query.search, mode: 'insensitive' as const } },
+            { student: { rollNumber: { contains: query.search, mode: 'insensitive' as const } } },
+            {
+              student: { user: { name: { contains: query.search, mode: 'insensitive' as const } } },
+            },
+          ],
+        }
+      : {}),
+  } satisfies Prisma.InvoiceWhereInput;
+
+  const order = [{ dueDate: 'desc' as const }, { voucherNumber: 'asc' as const }];
+  const now = new Date();
+
+  const page = isDerivedFilter ? await derivedPage(where, order, query, now) : null;
 
   const rows = await prisma.invoice.findMany({
-    where: {
-      ...scope,
-      ...(query.academicYearId ? { academicYearId: query.academicYearId } : {}),
-      ...(query.periodLabel ? { periodLabel: query.periodLabel } : {}),
-      ...(query.yearGroupId
-        ? { student: { enrolments: { some: { section: { yearGroupId: query.yearGroupId } } } } }
-        : {}),
-      ...(query.search
-        ? {
-            OR: [
-              { voucherNumber: { contains: query.search, mode: 'insensitive' as const } },
-              { student: { rollNumber: { contains: query.search, mode: 'insensitive' as const } } },
-              { student: { user: { name: { contains: query.search, mode: 'insensitive' as const } } } },
-            ],
-          }
-        : {}),
-    },
-    orderBy: [{ dueDate: 'desc' }, { voucherNumber: 'asc' }],
+    where: page ? { id: { in: page } } : where,
+    orderBy: order,
     take: query.limit,
     select: {
       id: true,
@@ -337,7 +361,6 @@ export async function listInvoices(
     },
   });
 
-  const now = new Date();
   const mapped = rows.map((row): InvoiceRow => {
     const balance = balanceOf(row.total, row.payments, row.creditNotes);
     return {
@@ -361,11 +384,55 @@ export async function listInvoices(
     };
   });
 
-  // Status and bucket are derived, so they are filtered after the query rather than in it.
-  return mapped.filter(
-    (row) =>
-      (!query.status || row.status === query.status) && (!query.bucket || row.bucket === query.bucket),
-  );
+  return mapped;
+}
+
+/**
+ * The ids of one page of a status- or aging-filtered ledger.
+ *
+ * Three cheap queries instead of one expensive one: the invoices' own money columns, and the
+ * payment and credit-note totals aggregated in Postgres. Hydrating twelve thousand invoices
+ * with their names, year groups and every payment row to keep a hundred of them cost 900ms;
+ * this costs a fraction of it, and what qualifies is still decided by the rules in `money.ts`.
+ */
+async function derivedPage(
+  where: Prisma.InvoiceWhereInput,
+  order: Prisma.InvoiceOrderByWithRelationInput[],
+  query: z.infer<typeof invoiceQuerySchema>,
+  now: Date,
+): Promise<string[]> {
+  const [invoices, payments, creditNotes] = await Promise.all([
+    prisma.invoice.findMany({
+      where,
+      orderBy: order,
+      select: { id: true, dueDate: true, total: true, status: true },
+    }),
+    prisma.payment.groupBy({ by: ['invoiceId'], _sum: { amount: true } }),
+    prisma.creditNote.groupBy({ by: ['invoiceId'], _sum: { amount: true } }),
+  ]);
+
+  const paidBy = new Map(payments.map((row) => [row.invoiceId, row._sum.amount ?? 0]));
+  const creditedBy = new Map(creditNotes.map((row) => [row.invoiceId, row._sum.amount ?? 0]));
+
+  return invoices
+    .filter((invoice) => {
+      // One row standing for the total: `balanceOf` sums what it is given, and a sum of one
+      // number is that number. The alternative is reading every payment row to add it up here.
+      const balance = balanceOf(
+        invoice.total,
+        [{ amount: paidBy.get(invoice.id) ?? 0 }],
+        [{ amount: creditedBy.get(invoice.id) ?? 0 }],
+      );
+      const status = statusFor(balance, invoice.dueDate, now, {
+        isWaived: invoice.status === 'WAIVED',
+      });
+      const bucket = balance.outstanding === 0 ? 'CURRENT' : agingBucket(invoice.dueDate, now);
+      return (
+        (!query.status || status === query.status) && (!query.bucket || bucket === query.bucket)
+      );
+    })
+    .slice(0, query.limit)
+    .map((invoice) => invoice.id);
 }
 
 /**
@@ -382,7 +449,11 @@ async function invoiceScope(actor: Actor, studentId?: string): Promise<Prisma.In
       select: { enrolments: { where: { droppedAt: null }, select: { sectionId: true } } },
     });
     if (!student) throw ApiError.notFound('Student not found');
-    assertCanAccessStudent(actor, studentId, student.enrolments.map((entry) => entry.sectionId));
+    assertCanAccessStudent(
+      actor,
+      studentId,
+      student.enrolments.map((entry) => entry.sectionId),
+    );
     return { studentId };
   }
 
@@ -452,7 +523,11 @@ export async function getInvoice(actor: Actor, invoiceId: string): Promise<Invoi
   });
   if (!student) throw ApiError.notFound('Invoice not found');
   if (!can(actor, 'fee.read.school')) {
-    assertCanAccessStudent(actor, row.studentId, student.enrolments.map((entry) => entry.sectionId));
+    assertCanAccessStudent(
+      actor,
+      row.studentId,
+      student.enrolments.map((entry) => entry.sectionId),
+    );
   }
 
   const now = new Date();

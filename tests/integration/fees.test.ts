@@ -346,6 +346,31 @@ describe('payments and financial integrity', () => {
     expect(invoice.status).toBe('PAID');
   });
 
+  it('filters the whole ledger by status before it takes a page', async () => {
+    /*
+     * The bug this pins, found by an end-to-end test asking for five unpaid invoices and
+     * getting none: status and aging are derived from the balance and the clock, so a filter
+     * applied to a page of rows returns "the matching ones among the newest five" rather than
+     * "the newest five matching" — and against a ledger whose newest invoices are settled,
+     * that is an empty list on a screen whose whole job is showing who has not paid.
+     */
+    const overdue = await asActor(bursar, () =>
+      listInvoices(bursar, { status: 'OVERDUE', limit: 5 }),
+    );
+    expect(overdue).toHaveLength(5);
+    expect(overdue.every((row) => row.status === 'OVERDUE')).toBe(true);
+    expect(overdue.every((row) => row.outstanding > 0)).toBe(true);
+
+    const paid = await asActor(bursar, () => listInvoices(bursar, { status: 'PAID', limit: 5 }));
+    expect(paid).toHaveLength(5);
+    expect(paid.every((row) => row.outstanding === 0)).toBe(true);
+
+    // And an aging bucket is the same shape of question.
+    const oldest = await asActor(bursar, () => listInvoices(bursar, { bucket: '90+', limit: 5 }));
+    expect(oldest.every((row) => row.bucket === '90+')).toBe(true);
+    expect(oldest.every((row) => row.daysOverdue > 90)).toBe(true);
+  });
+
   it('corrects an over-billing with a credit note, not an edit', async () => {
     const invoices = await asActor(bursar, () =>
       listInvoices(bursar, { periodLabel: TEST_PERIOD, status: 'UNPAID', limit: 5 }),

@@ -58,6 +58,28 @@ export function requireCapability(actor: Actor, capability: Capability): void {
   }
 }
 
+/**
+ * Any one of several capabilities is enough.
+ *
+ * Some screens are one screen for two audiences — a locker is read with `document.read.own`
+ * by the student and `document.read.children` by the parent — and the row scope, checked
+ * separately, is what keeps them apart. The error names the first capability so a developer
+ * reading a 403 log still gets a lead.
+ */
+export function canAny(actor: Actor, capabilities: readonly Capability[]): boolean {
+  const held = capabilitiesOf(actor.roles);
+  return capabilities.some((capability) => held.has(capability));
+}
+
+export function requireAnyCapability(actor: Actor, capabilities: readonly Capability[]): void {
+  if (!canAny(actor, capabilities)) {
+    throw new ForbiddenError(
+      `Missing capability: one of ${capabilities.join(', ')}`,
+      capabilities[0] ?? 'user.read',
+    );
+  }
+}
+
 export function hasRole(actor: Actor, role: RoleName): boolean {
   return actor.roles.includes(role);
 }

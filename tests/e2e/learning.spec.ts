@@ -46,7 +46,9 @@ test.describe('the past paper vault', () => {
     // The filter lives in the URL, so it survives a reload and can be shared.
     await expect(page).toHaveURL(/subjectId=/);
     await page.reload();
-    await expect(page.getByTestId('vault-filters').getByRole('combobox').first()).toHaveValue(value!);
+    await expect(page.getByTestId('vault-filters').getByRole('combobox').first()).toHaveValue(
+      value!,
+    );
   });
 
   test('hides attempted papers behind the "never attempted" switch', async ({ page }) => {
@@ -78,7 +80,11 @@ test.describe('timed practice', () => {
     await signIn(page, STUDENT);
     await page.goto('/papers?onlyUnattempted=true');
 
-    await page.getByRole('link').filter({ hasText: /Variant/ }).first().click();
+    await page
+      .getByRole('link')
+      .filter({ hasText: /Variant/ })
+      .first()
+      .click();
     await expect(page).toHaveURL(/\/papers\/[0-9a-f-]+/);
 
     // Nothing resembling a mark scheme link exists before the attempt is submitted —
@@ -103,7 +109,11 @@ test.describe('timed practice', () => {
   test('records a self-marked score and shows the grade', async ({ page }) => {
     await signIn(page, STUDENT);
     await page.goto('/papers?onlyUnattempted=true');
-    await page.getByRole('link').filter({ hasText: /Variant/ }).first().click();
+    await page
+      .getByRole('link')
+      .filter({ hasText: /Variant/ })
+      .first()
+      .click();
 
     await page.getByTestId('start-attempt').click();
     await page.getByTestId('submit-attempt').click();
@@ -119,7 +129,11 @@ test.describe('timed practice', () => {
   test('resuming a paper mid-attempt keeps the same clock, not a fresh hour', async ({ page }) => {
     await signIn(page, STUDENT);
     await page.goto('/papers?onlyUnattempted=true');
-    await page.getByRole('link').filter({ hasText: /Variant/ }).first().click();
+    await page
+      .getByRole('link')
+      .filter({ hasText: /Variant/ })
+      .first()
+      .click();
     // Wait for the navigation before reading the URL: click() resolves before the route
     // has changed, so page.url() otherwise hands back the list page.
     await expect(page).toHaveURL(/\/papers\/[0-9a-f-]+/);
@@ -146,8 +160,13 @@ test.describe('quizzes', () => {
     await signIn(page, STUDENT);
     await page.goto('/quizzes');
 
+    /*
+     * Asserted, not skipped past. The seed gives the advertised student's own sections their
+     * quizzes on purpose — an empty list here means the demo student has nothing to sit, which
+     * is a broken demo, not a test that does not apply.
+     */
     const rows = page.getByTestId('quiz-row');
-    if ((await rows.count()) === 0) test.skip();
+    expect(await rows.count(), 'the seed gives this student quizzes').toBeGreaterThan(0);
 
     await rows.first().click();
     await expect(page).toHaveURL(/\/quizzes\/[0-9a-f-]+\/take/);
@@ -236,8 +255,10 @@ test.describe('assignments', () => {
     await signIn(page, STUDENT);
     await page.goto('/assignments');
 
+    // Every section gets one assignment already past due and one still open, so a student
+    // always has both a status to read and something to hand in.
     const rows = page.getByTestId('assignment-row');
-    if ((await rows.count()) === 0) test.skip();
+    expect(await rows.count(), 'the seed gives this student assignments').toBeGreaterThan(0);
 
     await expect(page.getByTestId('assignment-status').first()).toBeVisible();
 
@@ -256,28 +277,36 @@ test.describe('assignments', () => {
       await expect(page.getByTestId('submission-done')).toBeVisible();
       return;
     }
-    test.skip();
+
+    // Falling out of the loop is a failure, not a pass: the seed leaves every student an open
+    // assignment they have not submitted, so there is always one to hand in.
+    throw new Error('no open assignment to submit — the seed should always leave one');
   });
 });
 
 test.describe('the weakness map', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test('ranks topics weakest first and does not call a thin sample a weakness', async ({ page }) => {
+  test('ranks topics weakest first and does not call a thin sample a weakness', async ({
+    page,
+  }) => {
     await signIn(page, STUDENT);
     await page.goto('/mastery');
 
-    const heading = page.getByRole('heading', { name: /weakness map/i });
-    if ((await heading.count()) === 0) test.skip();
-    await expect(heading).toBeVisible();
+    // The demo student sits quizzes in the seed, so they have mastery rows and therefore a map.
+    await expect(page.getByRole('heading', { name: /weakness map/i })).toBeVisible();
 
     const weakest = page.getByTestId('weakest-topics');
-    if ((await weakest.count()) > 0) {
-      const percents = await weakest.getByRole('img').evaluateAll((nodes) =>
-        nodes.map((node) => Number(/(\d+)%/.exec(node.getAttribute('aria-label') ?? '')?.[1] ?? '0')),
+    await expect(weakest).toBeVisible();
+    const percents = await weakest
+      .getByRole('img')
+      .evaluateAll((nodes) =>
+        nodes.map((node) =>
+          Number(/(\d+)%/.exec(node.getAttribute('aria-label') ?? '')?.[1] ?? '0'),
+        ),
       );
-      expect([...percents].sort((a, b) => a - b)).toEqual(percents);
-    }
+    expect(percents.length).toBeGreaterThan(0);
+    expect([...percents].sort((a, b) => a - b)).toEqual(percents);
 
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

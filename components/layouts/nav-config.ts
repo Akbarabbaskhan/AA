@@ -30,7 +30,13 @@ export const NAV_BY_ROLE: Readonly<Record<RoleName, readonly NavItem[]>> = Objec
     { key: 'fees', href: '/fees', icon: 'receipt' },
     { key: 'announcements', href: '/announcements', icon: 'megaphone' },
     { key: 'notifications', href: '/notifications', icon: 'bell' },
+    { key: 'calendar', href: '/calendar', icon: 'calendar' },
+    { key: 'events', href: '/events', icon: 'star' },
+    { key: 'recognition', href: '/recognition', icon: 'award' },
     { key: 'careers', href: '/careers', icon: 'compass' },
+    { key: 'profile', href: '/profile', icon: 'user' },
+    { key: 'identity', href: '/identity', icon: 'badge' },
+    { key: 'documents', href: '/documents', icon: 'folder' },
   ],
   PARENT: [
     // The four things the spec says a parent home screen shows, then the three things
@@ -44,6 +50,8 @@ export const NAV_BY_ROLE: Readonly<Record<RoleName, readonly NavItem[]>> = Objec
     { key: 'leave', href: '/leave', icon: 'calendar' },
     { key: 'meetings', href: '/meetings', icon: 'users' },
     { key: 'notifications', href: '/notifications', icon: 'bell' },
+    { key: 'calendar', href: '/calendar', icon: 'calendar' },
+    { key: 'documents', href: '/documents', icon: 'folder' },
   ],
   TEACHER: [
     { key: 'dashboard', href: '/dashboard', icon: 'home' },
@@ -58,6 +66,9 @@ export const NAV_BY_ROLE: Readonly<Record<RoleName, readonly NavItem[]>> = Objec
     { key: 'leave', href: '/leave', icon: 'calendar' },
     { key: 'meetings', href: '/meetings', icon: 'users' },
     { key: 'notifications', href: '/notifications', icon: 'bell' },
+    { key: 'calendar', href: '/calendar', icon: 'calendar' },
+    { key: 'societies', href: '/societies', icon: 'users' },
+    { key: 'careers', href: '/careers/requests', icon: 'compass' },
     { key: 'remarks', href: '/remarks', icon: 'message' },
   ],
   HOD: [
@@ -69,6 +80,7 @@ export const NAV_BY_ROLE: Readonly<Record<RoleName, readonly NavItem[]>> = Objec
     { key: 'timetable', href: '/timetable', icon: 'calendar' },
     { key: 'quizzes', href: '/quizzes', icon: 'help-circle' },
     { key: 'doubts', href: '/doubts', icon: 'message' },
+    { key: 'calendar', href: '/calendar', icon: 'calendar' },
   ],
   ADMIN: [
     { key: 'dashboard', href: '/dashboard', icon: 'home' },
@@ -82,6 +94,10 @@ export const NAV_BY_ROLE: Readonly<Record<RoleName, readonly NavItem[]>> = Objec
     { key: 'fees', href: '/fees', icon: 'receipt' },
     { key: 'leave', href: '/leave', icon: 'calendar' },
     { key: 'notifications', href: '/notifications', icon: 'bell' },
+    { key: 'calendar', href: '/calendar', icon: 'calendar' },
+    { key: 'societies', href: '/societies', icon: 'users' },
+    { key: 'recognition', href: '/recognition', icon: 'award' },
+    { key: 'careers', href: '/careers', icon: 'compass' },
     { key: 'settings', href: '/settings', icon: 'settings' },
   ],
   BURSAR: [

@@ -22,6 +22,8 @@ import { Rng } from './seed/random';
 import { seedAttendance, type SeedSection, type SeedSlot } from './seed/attendance';
 import { seedExams, type ExamSeedSection } from './seed/exams';
 import { seedFees, type FeeSeedOptions } from './seed/fees';
+import { seedStudentLife } from './seed/student-life';
+import { awardEarnedBadges } from '../lib/services/recognition';
 import {
   seedLearning,
   SUBJECT_TOPICS,
@@ -116,6 +118,19 @@ function phoneFor(serial: number): string {
 async function main(): Promise<void> {
   const startedAt = Date.now();
   console.log(`Seeding tenant "${TENANT_SLUG}" with ${STUDENT_COUNT} students…`);
+
+  /*
+   * Phase timings, on `SEED_TIMING=1`. The seed has a sixty-second budget and the only way
+   * to keep it is to know which phase spent the minute — the sub-seeds already report their
+   * own steps, and this covers what sits between them.
+   */
+  let phaseAt = Date.now();
+  const phase = (label: string): void => {
+    if (process.env['SEED_TIMING']) {
+      console.log(`  [phase] ${label.padEnd(16)} ${((Date.now() - phaseAt) / 1000).toFixed(1)}s`);
+    }
+    phaseAt = Date.now();
+  };
 
   const passwordHash = await hashPassword(DEMO_PASSWORD);
 
@@ -773,6 +788,8 @@ async function main(): Promise<void> {
     endTime: slot.endTime as string,
   }));
 
+  phase('structure+people');
+
   const attendance = await seedAttendance(prisma, rng, {
     schoolId,
     academicYearId: currentYear.id,
@@ -810,12 +827,28 @@ async function main(): Promise<void> {
       studentIds: section.students.map((student) => student.studentId),
     }));
 
-  // Dated backwards from today so every series sits in the past and can be published.
+  /*
+   * Dated backwards from today so every series sits in the past and can be published, then
+   * walked back onto a teaching day: no school sits its mocks on a Sunday or a public
+   * holiday, and a series dated on one produces a day of exam data with no school around it.
+   */
+  const examDay = (daysAgo: number): string => {
+    let date = shiftDays(todayString, daysAgo);
+    for (let step = 0; step < 10; step += 1) {
+      const weekday = new Date(`${date}T00:00:00.000Z`).getUTCDay() || 7;
+      if (weekday <= 5 && !holidaySet.has(date)) return date;
+      date = shiftDays(date, -1);
+    }
+    return date;
+  };
+
   const examSeriesDates = [
-    { name: `June Tests ${currentYearStartYear}`, type: 'TEST' as const, date: shiftDays(todayString, -120) },
-    { name: `August Mid-Terms ${currentYearStartYear}`, type: 'MID_TERM' as const, date: shiftDays(todayString, -60) },
-    { name: `September Mocks ${currentYearStartYear}`, type: 'MOCK' as const, date: shiftDays(todayString, -14) },
+    { name: `June Tests ${currentYearStartYear}`, type: 'TEST' as const, date: examDay(-120) },
+    { name: `August Mid-Terms ${currentYearStartYear}`, type: 'MID_TERM' as const, date: examDay(-60) },
+    { name: `September Mocks ${currentYearStartYear}`, type: 'MOCK' as const, date: examDay(-14) },
   ];
+
+  phase('attendance');
 
   const exams = await seedExams(prisma, rng, {
     schoolId,
@@ -853,6 +886,8 @@ async function main(): Promise<void> {
       studentIds: section.students.map((student) => student.studentId),
     }));
 
+  phase('exams');
+
   const learning = await seedLearning(prisma, rng, {
     schoolId,
     sections: learningSections,
@@ -863,6 +898,9 @@ async function main(): Promise<void> {
     attemptStudents: 60,
     // Half the sections, two quizzes each: one already sat, one just opened.
     quizzes: 40,
+    // The advertised student login. Their sections always get quizzes and their practice
+    // history is always populated, so the demo never opens on an empty screen.
+    demoStudentId: plans[0]!.studentId,
   });
 
   // ---------------------------------------------------------------------------
@@ -947,7 +985,42 @@ async function main(): Promise<void> {
   // Finance runs here rather than above because every concession and credit note carries
   // the coordinator's user id as its approver, and an approval with nobody's name on it is
   // exactly what an auditor looks for.
+  phase('learning');
+
   const fees = await seedFees(prisma, rng, feeSeedOptions);
+
+  /*
+   * Student life.
+   *
+   * After finance for the same reason: the house-point awards are attributed to the
+   * coordinator, and a point awarded by nobody is a point a family can dispute.
+   *
+   * Badges are awarded by the real service rather than a seed-only copy, so a bug in the
+   * badge rules fails the seed instead of hiding until somebody notices they have a badge
+   * they did not earn.
+   */
+  phase('fees');
+
+  const studentLife = await seedStudentLife(prisma, rng, {
+    schoolId,
+    today: todayString,
+    students: plans.map((plan) => ({
+      id: plan.studentId,
+      userId: plan.userId,
+      house: plan.house,
+    })),
+    staffIds: staffPlans
+      .filter((plan) => plan.subjectCode !== null)
+      .slice(0, 12)
+      .map((plan) => plan.staffId),
+    houses: HOUSES,
+  });
+
+  const sweepStarted = Date.now();
+  const badgeSweep = await withTenant({ schoolId }, () => awardEarnedBadges(schoolId));
+  if (process.env['SEED_TIMING']) {
+    console.log(`    [life] badge sweep ${((Date.now() - sweepStarted) / 1000).toFixed(1)}s`);
+  }
 
   // The teacher, student and parent demo logins are real accounts from the data above, so
   // the demo shows a populated timetable rather than an empty one.
@@ -1006,6 +1079,8 @@ async function main(): Promise<void> {
   }
   await scopedPrisma.$disconnect();
 
+  phase('publish+logins');
+
   const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
   const counts = {
     students: plans.length,
@@ -1038,6 +1113,14 @@ async function main(): Promise<void> {
     creditNotes: fees.creditNotes,
     concessions: fees.discounts,
     meetingSlots: fees.meetingSlots,
+    societies: studentLife.societies,
+    societyMembers: studentLife.memberships,
+    events: studentLife.events,
+    eventRsvps: studentLife.rsvps + studentLife.waitlisted,
+    housePoints: studentLife.housePoints,
+    badgeAwards: badgeSweep.awarded,
+    careerItems: studentLife.careerItems,
+    documentRequests: studentLife.documentRequests,
   };
 
   console.log('\nSeeded:');
@@ -1052,6 +1135,10 @@ async function main(): Promise<void> {
   console.log(`  exam marks       ${exams.meanPercent.toFixed(1)}% mean across 3 series`);
   console.log(
     `  practice         ${learning.attempts} attempts by 60 students across ${learning.papers} papers`,
+  );
+  console.log(
+    `  student life     ${studentLife.officers} student officers across ${studentLife.societies} societies, ` +
+      `${studentLife.waitlisted} on event waitlists, ${badgeSweep.awarded} badges earned`,
   );
   console.log(
     `  fees             PKR ${Math.round(fees.collectedPaisa / 100).toLocaleString('en-PK')} collected of ` +

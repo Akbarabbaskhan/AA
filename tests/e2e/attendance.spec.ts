@@ -21,6 +21,53 @@ async function signIn(page: Page, identifier: string) {
   await expect(page).toHaveURL(/\/dashboard/);
 }
 
+/** The school's date, which after 19:00 UTC is already tomorrow in Karachi. */
+function schoolToday(): string {
+  return new Date(Date.now() + 5 * 60 * 60_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Opens one of this teacher's registers and returns its URL.
+ *
+ * The teacher's screen is today by design, and no school teaches on Sunday — so one day in
+ * seven "today's classes" is legitimately empty, and every test that tapped through from it
+ * used to fail on a Sunday with nothing wrong. On a teaching day the tap is what is tested.
+ * On a day off, the designed empty state is asserted instead and the register is opened by
+ * URL, for a section this teacher really teaches, dated today — which is never locked, so
+ * the marking flows below run every day of the week.
+ */
+async function openARegister(page: Page, which: 'first' | 'last' = 'first'): Promise<string> {
+  const links = page.getByRole('link').filter({ hasText: /Period/ });
+
+  if ((await links.count()) > 0) {
+    const link = which === 'first' ? links.first() : links.last();
+    const href = (await link.getAttribute('href'))!;
+    await link.click();
+    return href;
+  }
+
+  await expect(page.getByRole('heading', { name: /no classes scheduled/i })).toBeVisible();
+
+  for (let back = 1; back <= 8; back += 1) {
+    const day = new Date(Date.now() + 5 * 60 * 60_000 - back * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const response = await page.request.get(`/api/attendance/today?date=${day}`);
+    expect(response.ok()).toBeTruthy();
+    const { classes } = (await response.json()) as {
+      classes: { sectionId: string; periodIndex: number }[];
+    };
+    const chosen = which === 'first' ? classes[0] : classes[classes.length - 1];
+    if (chosen) {
+      const href = `/attendance/${chosen.sectionId}/${schoolToday()}/${chosen.periodIndex}`;
+      await page.goto(href);
+      return href;
+    }
+  }
+
+  throw new Error('this teacher has no classes on any of the last eight days');
+}
+
 test.describe('the teacher flow', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
@@ -30,9 +77,7 @@ test.describe('the teacher flow', () => {
     await page.goto('/attendance');
     await expect(page.getByRole('heading', { name: /today's classes/i })).toBeVisible();
 
-    const firstClass = page.getByRole('link').filter({ hasText: /Period/ }).first();
-    await expect(firstClass).toBeVisible();
-    await firstClass.click();
+    await openARegister(page);
 
     await expect(page).toHaveURL(/\/attendance\/[0-9a-f-]+\/\d{4}-\d{2}-\d{2}\/\d+/);
     // Every student pre-marked present: the teacher taps only the absentees.
@@ -47,7 +92,7 @@ test.describe('the teacher flow', () => {
   test('marks a student absent with a single tap and saves', async ({ page }) => {
     await signIn(page, 'emp-0001@volt-demo.test');
     await page.goto('/attendance');
-    await page.getByRole('link').filter({ hasText: /Period/ }).first().click();
+    await openARegister(page);
     await expect(page.getByRole('button', { name: /Submit register/i })).toBeVisible();
 
     // Start from a known state — these specs share one demo tenant, so a test that
@@ -66,7 +111,7 @@ test.describe('the teacher flow', () => {
   test('bulk actions set the whole register at once', async ({ page }) => {
     await signIn(page, 'emp-0001@volt-demo.test');
     await page.goto('/attendance');
-    await page.getByRole('link').filter({ hasText: /Period/ }).first().click();
+    await openARegister(page);
     await expect(page.getByRole('button', { name: /All absent/i })).toBeVisible();
 
     await page.getByRole('button', { name: /All absent/i }).click();
@@ -85,9 +130,7 @@ test.describe('offline marking — the moment the demo turns on', () => {
   test('accepts marks in airplane mode and syncs them on reconnect', async ({ page, context }) => {
     await signIn(page, 'emp-0001@volt-demo.test');
     await page.goto('/attendance');
-    const firstClass = page.getByRole('link').filter({ hasText: /Period/ }).first();
-    await expect(firstClass).toBeVisible();
-    const href = (await firstClass.getAttribute('href'))!;
+    const href = await openARegister(page);
 
     /*
      * A register nobody has marked yet.
@@ -134,9 +177,7 @@ test.describe('offline marking — the moment the demo turns on', () => {
   }) => {
     await signIn(page, 'emp-0001@volt-demo.test');
     await page.goto('/attendance');
-    const lastClass = page.getByRole('link').filter({ hasText: /Period/ }).last();
-    await expect(lastClass).toBeVisible();
-    const href = (await lastClass.getAttribute('href'))!;
+    const href = await openARegister(page, 'last');
 
     // An unmarked register, for the same reason as above.
     const [, , sectionId, date, period] = href.split('/');

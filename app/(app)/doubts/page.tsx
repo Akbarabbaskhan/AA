@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { EmptyState } from '@/components/ui/states';
 import { AskForm } from '@/components/features/doubts/ask-form';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { can } from '@/lib/permissions';
 import { prisma } from '@/lib/db';
 import { listDoubts } from '@/lib/services/doubts';
@@ -22,6 +23,7 @@ export default async function DoubtsPage({
   searchParams: { scope?: string };
 }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'doubts');
   const t = await getTranslations('doubts');
 
   const canAnswer = can(actor, 'doubt.answer');

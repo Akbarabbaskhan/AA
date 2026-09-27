@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PracticeRunner, type PracticeState } from '@/components/features/papers/practice-runner';
 import { PracticeTrendChart } from '@/components/features/papers/practice-trend-chart';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { ApiError } from '@/lib/api/errors';
 import { can } from '@/lib/permissions';
 import { prisma } from '@/lib/db';
@@ -27,6 +28,7 @@ const SESSION_LABEL: Record<string, string> = {
  */
 export default async function PaperPage({ params }: { params: { id: string } }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'learning');
   const t = await getTranslations('papers');
   const tp = await getTranslations('practice');
 

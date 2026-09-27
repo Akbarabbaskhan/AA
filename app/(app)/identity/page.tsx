@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { QrCode } from '@/components/features/identity/qr-code';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { ApiError } from '@/lib/api/errors';
 import { getDigitalId } from '@/lib/services/identity';
 import { formatDate } from '@/lib/i18n/format';
@@ -20,6 +21,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function IdentityPage() {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'identity');
   const t = await getTranslations('identity');
   const locale = (await getLocale()) === 'ur' ? 'ur' : 'en';
 

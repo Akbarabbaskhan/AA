@@ -4,6 +4,7 @@ import { StudentAttendanceView } from '@/components/features/attendance/student-
 import { TodaysClasses } from '@/components/features/attendance/todays-classes';
 import { EmptyState } from '@/components/ui/states';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { getTodaysClasses } from '@/lib/services/attendance/register';
 import { getDailyReport, getStudentAttendance } from '@/lib/services/attendance/reports';
 import { getSchoolSettings } from '@/lib/services/school-settings';
@@ -19,6 +20,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function AttendancePage() {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'attendance');
   const t = await getTranslations('attendance');
 
   return withActor(actor, async () => {

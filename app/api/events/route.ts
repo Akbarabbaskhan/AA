@@ -3,7 +3,7 @@ import { createEvent, eventInputSchema, eventQuerySchema, listEvents } from '@/l
 
 export const dynamic = 'force-dynamic';
 
-export const GET = route({}, async ({ actor, request }) => {
+export const GET = route({ module: 'events' }, async ({ actor, request }) => {
   const query = eventQuerySchema.parse(Object.fromEntries(new URL(request.url).searchParams));
   return listEvents(actor, query);
 });
@@ -13,4 +13,6 @@ export const GET = route({}, async ({ actor, request }) => {
  * society named in it, so it authorises first and validates second. Parsing here would hand
  * a caller with no business creating events a schema to read.
  */
-export const POST = route({}, async ({ actor, request }) => createEvent(actor, await request.json()));
+export const POST = route({ module: 'events' }, async ({ actor, request }) =>
+  createEvent(actor, await request.json()),
+);

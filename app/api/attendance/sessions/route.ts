@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { route } from '@/lib/api/handler';
 import { getRegister, saveRegister, saveRegisterSchema } from '@/lib/services/attendance/register';
 
-
 /**
  * Always dynamic: the route wrapper resolves the session and reads request headers, so
  * there is nothing here Next could prerender.
@@ -15,12 +14,18 @@ const querySchema = z.object({
   periodIndex: z.coerce.number().int().min(1).max(20),
 });
 
-export const GET = route({ capability: 'attendance.read.section' }, async ({ actor, request }) => {
-  const query = querySchema.parse(Object.fromEntries(new URL(request.url).searchParams));
-  return getRegister(actor, query);
-});
+export const GET = route(
+  { capability: 'attendance.read.section', module: 'attendance' },
+  async ({ actor, request }) => {
+    const query = querySchema.parse(Object.fromEntries(new URL(request.url).searchParams));
+    return getRegister(actor, query);
+  },
+);
 
-export const POST = route({ capability: 'attendance.mark' }, async ({ actor, request }) => {
-  const body = saveRegisterSchema.parse(await request.json());
-  return saveRegister(actor, body);
-});
+export const POST = route(
+  { capability: 'attendance.mark', module: 'attendance' },
+  async ({ actor, request }) => {
+    const body = saveRegisterSchema.parse(await request.json());
+    return saveRegister(actor, body);
+  },
+);

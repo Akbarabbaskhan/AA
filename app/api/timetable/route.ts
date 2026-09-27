@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { route } from '@/lib/api/handler';
 import { getTimetable } from '@/lib/services/timetable';
 
-
 /**
  * Always dynamic: the route wrapper resolves the session and reads request headers, so
  * there is nothing here Next could prerender.
@@ -14,7 +13,10 @@ const querySchema = z.object({
   staffId: z.string().uuid().optional(),
   sectionId: z.string().uuid().optional(),
   yearGroupId: z.string().uuid().optional(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
 
 export const GET = route({ capability: 'timetable.read' }, async ({ actor, request }) => {

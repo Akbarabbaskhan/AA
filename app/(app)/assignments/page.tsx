@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { EmptyState } from '@/components/ui/states';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { can } from '@/lib/permissions';
 import { listAssignments } from '@/lib/services/assignments';
 import { formatDate } from '@/lib/i18n/format';
@@ -17,6 +18,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function AssignmentsPage() {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'learning');
   const t = await getTranslations('assignments');
   const locale = (await getLocale()) === 'ur' ? 'ur' : 'en';
 

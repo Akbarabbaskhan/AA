@@ -3,9 +3,14 @@ import { createFeeHead, feeHeadSchema, listFeeHeads } from '@/lib/services/fees/
 
 export const dynamic = 'force-dynamic';
 
-export const GET = route({ capability: 'fee.read.school' }, async ({ actor }) => listFeeHeads(actor));
+export const GET = route({ capability: 'fee.read.school', module: 'fees' }, async ({ actor }) =>
+  listFeeHeads(actor),
+);
 
-export const POST = route({ capability: 'fee.manage' }, async ({ actor, request }) => {
-  const input = feeHeadSchema.parse(await request.json());
-  return createFeeHead(actor, input);
-});
+export const POST = route(
+  { capability: 'fee.manage', module: 'fees' },
+  async ({ actor, request }) => {
+    const input = feeHeadSchema.parse(await request.json());
+    return createFeeHead(actor, input);
+  },
+);

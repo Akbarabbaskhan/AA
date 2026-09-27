@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { RegisterClient } from '@/components/features/attendance/register-client';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { getRegister } from '@/lib/services/attendance/register';
 import { ForbiddenError } from '@/lib/permissions';
 import { ApiError } from '@/lib/api/errors';
@@ -11,6 +12,7 @@ type Params = { sectionId: string; date: string; period: string };
 
 export default async function RegisterPage({ params }: { params: Params }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'attendance');
   const periodIndex = Number(params.period);
   if (!Number.isInteger(periodIndex)) notFound();
 

@@ -1,7 +1,6 @@
 import { route } from '@/lib/api/handler';
 import { moveSlot, placementSchema, removeSlot } from '@/lib/services/timetable';
 
-
 /**
  * Always dynamic: the route wrapper resolves the session and reads request headers, so
  * there is nothing here Next could prerender.

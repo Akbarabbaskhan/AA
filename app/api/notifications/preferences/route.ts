@@ -1,5 +1,9 @@
 import { route } from '@/lib/api/handler';
-import { getPreferences, preferenceSchema, setPreference } from '@/lib/services/notifications/inbox';
+import {
+  getPreferences,
+  preferenceSchema,
+  setPreference,
+} from '@/lib/services/notifications/inbox';
 
 export const dynamic = 'force-dynamic';
 

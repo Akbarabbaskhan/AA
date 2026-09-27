@@ -4,7 +4,7 @@ import { getDigitalId } from '@/lib/services/identity';
 
 export const dynamic = 'force-dynamic';
 
-export const GET = route({}, async ({ actor, request }) => {
+export const GET = route({ module: 'identity' }, async ({ actor, request }) => {
   const { studentId } = z
     .object({ studentId: z.string().uuid().optional() })
     .parse(Object.fromEntries(new URL(request.url).searchParams));

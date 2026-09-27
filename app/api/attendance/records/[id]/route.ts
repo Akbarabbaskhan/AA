@@ -1,7 +1,6 @@
 import { route } from '@/lib/api/handler';
 import { amendRecord, amendSchema } from '@/lib/services/attendance/register';
 
-
 /**
  * Always dynamic: the route wrapper resolves the session and reads request headers, so
  * there is nothing here Next could prerender.

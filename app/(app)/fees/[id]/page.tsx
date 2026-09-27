@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Money, StatusChip, toneForStatus } from '@/components/features/fees/money';
 import { RecordPayment } from '@/components/features/fees/record-payment';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { ApiError } from '@/lib/api/errors';
 import { ForbiddenError, can } from '@/lib/permissions';
 import { getInvoice } from '@/lib/services/fees/invoices';
@@ -12,6 +13,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function InvoicePage({ params }: { params: { id: string } }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'fees');
   const t = await getTranslations('fees');
 
   try {

@@ -98,6 +98,7 @@ export const NAV_BY_ROLE: Readonly<Record<RoleName, readonly NavItem[]>> = Objec
     { key: 'societies', href: '/societies', icon: 'users' },
     { key: 'recognition', href: '/recognition', icon: 'award' },
     { key: 'careers', href: '/careers', icon: 'compass' },
+    { key: 'audit', href: '/audit', icon: 'shield' },
     { key: 'settings', href: '/settings', icon: 'settings' },
   ],
   BURSAR: [
@@ -110,11 +111,14 @@ export const NAV_BY_ROLE: Readonly<Record<RoleName, readonly NavItem[]>> = Objec
     { key: 'dashboard', href: '/dashboard', icon: 'home' },
     { key: 'students', href: '/students', icon: 'users' },
     { key: 'notifications', href: '/notifications', icon: 'bell' },
+    // The bursar holds `audit.read`; the log shows them finance rows and no marks.
+    { key: 'audit', href: '/audit', icon: 'shield' },
   ],
   SUPERADMIN: [
     { key: 'dashboard', href: '/dashboard', icon: 'home' },
+    { key: 'tenants', href: '/tenants', icon: 'briefcase' },
     { key: 'settings', href: '/settings', icon: 'settings' },
-    { key: 'reports', href: '/reports', icon: 'chart' },
+    { key: 'audit', href: '/audit', icon: 'shield' },
   ],
 });
 
@@ -135,11 +139,57 @@ export function primaryRole(roles: readonly RoleName[]): RoleName {
   return ROLE_PRECEDENCE.find((role) => roles.includes(role)) ?? 'STUDENT';
 }
 
-export function navFor(roles: readonly RoleName[], activeRole?: RoleName): readonly NavItem[] {
-  const role = activeRole && roles.includes(activeRole) ? activeRole : primaryRole(roles);
-  return NAV_BY_ROLE[role];
+/**
+ * Which navigation entries each switchable module owns.
+ *
+ * A module a school has turned off disappears from the navigation as well as from its
+ * endpoints — a hidden screen whose API still answers is not a feature flag, and a visible
+ * link to a 404 is worse than no link.
+ */
+export const MODULE_NAV_KEYS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  attendance: ['attendance'],
+  exams: ['exams', 'marks', 'results'],
+  learning: ['papers', 'quizzes', 'assignments', 'resources', 'mastery'],
+  fees: ['fees', 'defaulters', 'reconcile'],
+  parents: ['children'],
+  societies: ['societies'],
+  events: ['events'],
+  recognition: ['recognition'],
+  careers: ['careers'],
+  identity: ['identity'],
+  documents: ['documents'],
+  meetings: ['meetings'],
+  doubts: ['doubts'],
+  announcements: ['announcements'],
+  reports: ['reports'],
+});
+
+/** The nav keys hidden by a set of flags, derived rather than listed twice. */
+export function hiddenNavKeys(flags: Readonly<Record<string, boolean>>): Set<string> {
+  const hidden = new Set<string>();
+  for (const [module, keys] of Object.entries(MODULE_NAV_KEYS)) {
+    if (flags[module] === false) for (const key of keys) hidden.add(key);
+  }
+  return hidden;
 }
 
-export function bottomTabs(roles: readonly RoleName[], activeRole?: RoleName): readonly NavItem[] {
-  return navFor(roles, activeRole).slice(0, MAX_BOTTOM_TABS);
+export function navFor(
+  roles: readonly RoleName[],
+  activeRole?: RoleName,
+  flags?: Readonly<Record<string, boolean>>,
+): readonly NavItem[] {
+  const role = activeRole && roles.includes(activeRole) ? activeRole : primaryRole(roles);
+  const items = NAV_BY_ROLE[role];
+  if (!flags) return items;
+
+  const hidden = hiddenNavKeys(flags);
+  return items.filter((item) => !hidden.has(item.key));
+}
+
+export function bottomTabs(
+  roles: readonly RoleName[],
+  activeRole?: RoleName,
+  flags?: Readonly<Record<string, boolean>>,
+): readonly NavItem[] {
+  return navFor(roles, activeRole, flags).slice(0, MAX_BOTTOM_TABS);
 }

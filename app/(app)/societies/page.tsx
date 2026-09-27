@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/states';
 import { MembershipButton } from '@/components/features/societies/membership-button';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { can } from '@/lib/permissions';
 import { listSocieties } from '@/lib/services/societies';
 
@@ -18,6 +19,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function SocietiesPage() {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'societies');
   const t = await getTranslations('societies');
 
   const societies = await withActor(actor, () => listSocieties(actor));

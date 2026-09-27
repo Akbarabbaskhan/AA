@@ -16,7 +16,7 @@ const querySchema = z.object({
 });
 
 /** Streams the PDF itself rather than a link, so a card is one click from the portal. */
-export const GET = route({}, async ({ actor, request }) => {
+export const GET = route({ module: 'exams' }, async ({ actor, request }) => {
   const query = querySchema.parse(Object.fromEntries(new URL(request.url).searchParams));
 
   if (query.studentId) {

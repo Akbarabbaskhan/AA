@@ -15,6 +15,7 @@ export type AuditableEntity =
   | 'AttendanceRecord'
   | 'AttendanceSession'
   | 'Mark'
+  | 'BehaviourNote'
   | 'Invoice'
   | 'Payment'
   | 'FeeHead'

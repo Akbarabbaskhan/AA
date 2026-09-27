@@ -3,9 +3,14 @@ import { createSociety, listSocieties, societyInputSchema } from '@/lib/services
 
 export const dynamic = 'force-dynamic';
 
-export const GET = route({ capability: 'society.read' }, async ({ actor }) => listSocieties(actor));
+export const GET = route({ capability: 'society.read', module: 'societies' }, async ({ actor }) =>
+  listSocieties(actor),
+);
 
-export const POST = route({ capability: 'society.manage' }, async ({ actor, request }) => {
-  const input = societyInputSchema.parse(await request.json());
-  return createSociety(actor, input);
-});
+export const POST = route(
+  { capability: 'society.manage', module: 'societies' },
+  async ({ actor, request }) => {
+    const input = societyInputSchema.parse(await request.json());
+    return createSociety(actor, input);
+  },
+);

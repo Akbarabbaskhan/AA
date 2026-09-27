@@ -2,6 +2,7 @@ import { getTranslations, getLocale } from 'next-intl/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/states';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { listAnnouncements } from '@/lib/services/announcements';
 import { formatDate } from '@/lib/i18n/format';
 import { MarkAnnouncementRead } from '@/components/features/announcements/mark-read';
@@ -17,6 +18,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function AnnouncementsPage() {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'announcements');
   const t = await getTranslations('announcements');
   const locale = (await getLocale()) === 'ur' ? 'ur' : 'en';
 

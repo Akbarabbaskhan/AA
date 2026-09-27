@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Money } from '@/components/features/fees/money';
 import { CollectionChart } from '@/components/features/fees/collection-chart';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { can } from '@/lib/permissions';
 import { getCollectionReport } from '@/lib/services/fees/reports';
 
@@ -11,6 +12,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function FeeReportsPage() {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'fees');
   if (!can(actor, 'fee.read.school')) notFound();
 
   const t = await getTranslations('fees');

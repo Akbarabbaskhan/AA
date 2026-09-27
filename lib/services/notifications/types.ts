@@ -92,6 +92,17 @@ export const NOTIFICATION_TYPES = {
     batching: 'NONE',
     audience: 'ANY',
   },
+  'remark.published': {
+    /*
+     * In-app and push only. A behaviour note reaching a family matters, and WhatsApp
+     * business-initiated messages need a template Meta has approved — the school's approved
+     * list has no behaviour template, and sending outside it risks the number.
+     */
+    defaultChannels: ['IN_APP', 'PUSH'],
+    isUrgent: false,
+    batching: 'DAILY_PER_USER',
+    audience: 'ANY',
+  },
   'security.alert': {
     // A password change or a new device. Always through, always now.
     defaultChannels: ['IN_APP', 'EMAIL', 'SMS'],

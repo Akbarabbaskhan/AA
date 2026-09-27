@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/states';
 import { PublishButton } from '@/components/features/exams/publish-button';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { listExamSeries } from '@/lib/services/exams/series';
 import { prisma } from '@/lib/db';
 import { can } from '@/lib/permissions';
@@ -17,6 +18,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function ExamsPage() {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'exams');
   const t = await getTranslations('exams');
 
   const schoolWide = can(actor, 'marks.read.school');

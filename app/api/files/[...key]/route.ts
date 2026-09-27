@@ -45,7 +45,11 @@ export async function PUT(request: NextRequest, { params }: { params: { key: str
       fileName: key,
       body,
     });
-    return NextResponse.json({ key: result.key, size: result.size, contentType: result.contentType });
+    return NextResponse.json({
+      key: result.key,
+      size: result.size,
+      contentType: result.contentType,
+    });
   } catch (error) {
     if (error instanceof UnsupportedFileTypeError || error instanceof FileTooLargeError) {
       return NextResponse.json(
@@ -70,7 +74,10 @@ export async function GET(request: NextRequest, { params }: { params: { key: str
 
   const file = await getStorage().read(key);
   if (!file) {
-    return NextResponse.json({ error: { code: 'notFound', message: 'Not found' } }, { status: 404 });
+    return NextResponse.json(
+      { error: { code: 'notFound', message: 'Not found' } },
+      { status: 404 },
+    );
   }
 
   return new NextResponse(new Uint8Array(file.body), {

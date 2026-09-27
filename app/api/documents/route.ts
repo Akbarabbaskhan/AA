@@ -14,7 +14,10 @@ export const GET = route(
   },
 );
 
-export const POST = route({ capability: 'document.manage' }, async ({ actor, request }) => {
-  const input = lockerItemSchema.parse(await request.json());
-  return addLockerItem(actor, input);
-});
+export const POST = route(
+  { capability: 'document.manage', module: 'documents' },
+  async ({ actor, request }) => {
+    const input = lockerItemSchema.parse(await request.json());
+    return addLockerItem(actor, input);
+  },
+);

@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { route } from '@/lib/api/handler';
 import { getStudentAttendance } from '@/lib/services/attendance/reports';
 
-
 /**
  * Always dynamic: the route wrapper resolves the session and reads request headers, so
  * there is nothing here Next could prerender.
@@ -10,8 +9,14 @@ import { getStudentAttendance } from '@/lib/services/attendance/reports';
 export const dynamic = 'force-dynamic';
 
 const querySchema = z.object({
-  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  from: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  to: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
 
 /**

@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/states';
 import { Money, StatusChip, toneForStatus } from '@/components/features/fees/money';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { can } from '@/lib/permissions';
 import { invoiceQuerySchema, listInvoices } from '@/lib/services/fees/invoices';
 import { getCollectionReport } from '@/lib/services/fees/reports';
@@ -23,6 +24,7 @@ export default async function FeesPage({
   searchParams: Record<string, string | string[] | undefined>;
 }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'fees');
   const t = await getTranslations('fees');
 
   const isBursar = can(actor, 'fee.read.school');

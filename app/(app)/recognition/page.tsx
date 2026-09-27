@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { HouseTable } from '@/components/features/recognition/house-table';
 import { OptOutToggle } from '@/components/features/recognition/opt-out-toggle';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import {
   EFFORT_METRICS,
   getBadges,
@@ -29,6 +30,7 @@ export default async function RecognitionPage({
   searchParams: Record<string, string | string[] | undefined>;
 }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'recognition');
   const t = await getTranslations('recognition');
   const locale = (await getLocale()) === 'ur' ? 'ur' : 'en';
 

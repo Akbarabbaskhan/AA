@@ -1,6 +1,7 @@
 import { getLocale, getTranslations } from 'next-intl/server';
 import { EmptyState } from '@/components/ui/states';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { getLocker } from '@/lib/services/identity';
 import { formatDate } from '@/lib/i18n/format';
 
@@ -18,6 +19,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function DocumentsPage() {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'documents');
   const t = await getTranslations('identity');
   const tc = await getTranslations('careers');
   const locale = (await getLocale()) === 'ur' ? 'ur' : 'en';

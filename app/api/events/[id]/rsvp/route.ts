@@ -7,6 +7,7 @@ export const POST = route<{ id: string }>({ capability: 'event.rsvp' }, async ({
   rsvp(actor, params.id),
 );
 
-export const DELETE = route<{ id: string }>({ capability: 'event.rsvp' }, async ({ actor, params }) =>
-  cancelRsvp(actor, params.id),
+export const DELETE = route<{ id: string }>(
+  { capability: 'event.rsvp' },
+  async ({ actor, params }) => cancelRsvp(actor, params.id),
 );

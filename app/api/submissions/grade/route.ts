@@ -3,7 +3,10 @@ import { gradeSubmission, gradeSubmissionSchema } from '@/lib/services/assignmen
 
 export const dynamic = 'force-dynamic';
 
-export const POST = route({ capability: 'assignment.manage' }, async ({ actor, request }) => {
-  const input = gradeSubmissionSchema.parse(await request.json());
-  return gradeSubmission(actor, input);
-});
+export const POST = route(
+  { capability: 'assignment.manage', module: 'learning' },
+  async ({ actor, request }) => {
+    const input = gradeSubmissionSchema.parse(await request.json());
+    return gradeSubmission(actor, input);
+  },
+);

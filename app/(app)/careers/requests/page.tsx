@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/ui/states';
 import { RequestForm } from '@/components/features/careers/request-form';
 import { DecideRequest } from '@/components/features/careers/decide-request';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { can } from '@/lib/permissions';
 import { prisma } from '@/lib/db';
 import { listDocumentRequests, requestQuerySchema } from '@/lib/services/careers';
@@ -31,6 +32,7 @@ export default async function DocumentRequestsPage({
   searchParams: Record<string, string | string[] | undefined>;
 }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'careers');
   const t = await getTranslations('careers');
   const locale = (await getLocale()) === 'ur' ? 'ur' : 'en';
 

@@ -8,6 +8,7 @@ import {
   type Actor,
   type Capability,
 } from '@/lib/permissions';
+import { assertModuleEnabled, type ModuleName } from '@/lib/services/school-settings';
 import { toErrorResponse } from './errors';
 
 export type RouteContext<P = Record<string, string>> = {
@@ -26,7 +27,12 @@ export type RouteContext<P = Record<string, string>> = {
  * every request, for every route.
  */
 export function route<P = Record<string, string>>(
-  options: { capability?: Capability; anyCapability?: readonly Capability[] },
+  options: {
+    capability?: Capability;
+    anyCapability?: readonly Capability[];
+    /** The switchable module this route belongs to, if any. */
+    module?: ModuleName;
+  },
   handler: (context: RouteContext<P>) => Promise<NextResponse | unknown>,
 ) {
   return async (request: NextRequest, segment: { params: P }): Promise<NextResponse> => {
@@ -47,7 +53,15 @@ export function route<P = Record<string, string>>(
           ip: headerList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? undefined,
           userAgent: headerList.get('user-agent') ?? undefined,
         },
-        () => handler({ actor, request, params: segment.params }),
+        async () => {
+          /*
+           * The module check runs inside the tenant scope, because the flags belong to the
+           * school. A module a school has switched off answers 404 — the flag closes the
+           * endpoint, not only the navigation entry.
+           */
+          if (options.module) await assertModuleEnabled(options.module);
+          return handler({ actor, request, params: segment.params });
+        },
       );
 
       if (result instanceof NextResponse) return result;

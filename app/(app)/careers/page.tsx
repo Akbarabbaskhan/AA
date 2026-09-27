@@ -3,6 +3,7 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/states';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { CAREER_TYPES, careerQuerySchema, listCareerItems } from '@/lib/services/careers';
 import { formatDate } from '@/lib/i18n/format';
 
@@ -21,6 +22,7 @@ export default async function CareersPage({
   searchParams: Record<string, string | string[] | undefined>;
 }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'careers');
   const t = await getTranslations('careers');
   const locale = (await getLocale()) === 'ur' ? 'ur' : 'en';
 

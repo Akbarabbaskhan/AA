@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/ui/states';
 import { ComponentBreakdown } from '@/components/features/exams/component-breakdown';
 import { GradeTrendChart } from '@/components/features/exams/grade-trend-chart';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { getStudentResults } from '@/lib/services/exams/results';
 import { cn } from '@/lib/utils/cn';
 
@@ -21,6 +22,7 @@ function formatPercent(value: number | null | undefined): string {
  */
 export default async function ResultsPage() {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'exams');
   const t = await getTranslations('exams');
 
   const studentId = actor.studentId ?? actor.childStudentIds[0];

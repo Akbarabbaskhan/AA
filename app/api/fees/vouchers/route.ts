@@ -13,16 +13,19 @@ const querySchema = z.object({
   periodLabel: z.string().min(1).max(60),
 });
 
-export const GET = route({ capability: 'fee.manage' }, async ({ actor, request }) => {
-  const query = querySchema.parse(Object.fromEntries(new URL(request.url).searchParams));
-  const { pdf, count } = await renderVoucherBatch(actor, query);
+export const GET = route(
+  { capability: 'fee.manage', module: 'fees' },
+  async ({ actor, request }) => {
+    const query = querySchema.parse(Object.fromEntries(new URL(request.url).searchParams));
+    const { pdf, count } = await renderVoucherBatch(actor, query);
 
-  return new NextResponse(new Uint8Array(pdf), {
-    headers: {
-      'content-type': 'application/pdf',
-      'content-disposition': `attachment; filename="vouchers-${query.periodLabel.replace(/\W+/g, '-')}.pdf"`,
-      'x-voucher-count': String(count),
-      'cache-control': 'private, no-store',
-    },
-  });
-});
+    return new NextResponse(new Uint8Array(pdf), {
+      headers: {
+        'content-type': 'application/pdf',
+        'content-disposition': `attachment; filename="vouchers-${query.periodLabel.replace(/\W+/g, '-')}.pdf"`,
+        'x-voucher-count': String(count),
+        'cache-control': 'private, no-store',
+      },
+    });
+  },
+);

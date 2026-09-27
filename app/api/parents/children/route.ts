@@ -3,4 +3,4 @@ import { getChildren } from '@/lib/services/parents';
 
 export const dynamic = 'force-dynamic';
 
-export const GET = route({}, async ({ actor }) => getChildren(actor));
+export const GET = route({ module: 'parents' }, async ({ actor }) => getChildren(actor));

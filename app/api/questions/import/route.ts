@@ -9,7 +9,10 @@ const bodySchema = z.object({
   csv: z.string().min(1).max(2_000_000),
 });
 
-export const POST = route({ capability: 'quiz.manage' }, async ({ actor, request }) => {
-  const input = bodySchema.parse(await request.json());
-  return importQuestions(actor, input.subjectId, input.csv);
-});
+export const POST = route(
+  { capability: 'quiz.manage', module: 'learning' },
+  async ({ actor, request }) => {
+    const input = bodySchema.parse(await request.json());
+    return importQuestions(actor, input.subjectId, input.csv);
+  },
+);

@@ -10,12 +10,17 @@ const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
-export const GET = route({}, async ({ actor, request }) => {
+export const GET = route({ module: 'learning' }, async ({ actor, request }) => {
   const query = querySchema.parse(Object.fromEntries(new URL(request.url).searchParams));
   return listAttempts(actor, query);
 });
 
-export const POST = route({ capability: 'attempt.create' }, async ({ actor, request }) => {
-  const { pastPaperId } = z.object({ pastPaperId: z.string().uuid() }).parse(await request.json());
-  return startAttempt(actor, pastPaperId);
-});
+export const POST = route(
+  { capability: 'attempt.create', module: 'learning' },
+  async ({ actor, request }) => {
+    const { pastPaperId } = z
+      .object({ pastPaperId: z.string().uuid() })
+      .parse(await request.json());
+    return startAttempt(actor, pastPaperId);
+  },
+);

@@ -5,6 +5,7 @@ import { EmptyState } from '@/components/ui/states';
 import { Money } from '@/components/features/fees/money';
 import { RemindButton } from '@/components/features/fees/remind-button';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { defaulterQuerySchema, getDefaulters } from '@/lib/services/fees/reports';
 import { AGING_BUCKETS } from '@/lib/services/fees/money';
 
@@ -23,6 +24,7 @@ export default async function DefaultersPage({
   searchParams: Record<string, string | string[] | undefined>;
 }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'fees');
   const t = await getTranslations('defaulters');
   const tf = await getTranslations('fees');
 

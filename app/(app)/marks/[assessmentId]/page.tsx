@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { MarksGridClient } from '@/components/features/exams/marks-grid';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { getMarksGrid } from '@/lib/services/exams/marks';
 import { ForbiddenError } from '@/lib/permissions';
 import { ApiError } from '@/lib/api/errors';
@@ -9,6 +10,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function MarksPage({ params }: { params: { assessmentId: string } }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'exams');
 
   try {
     const grid = await withActor(actor, () => getMarksGrid(actor, params.assessmentId));

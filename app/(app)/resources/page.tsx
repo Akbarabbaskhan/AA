@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/states';
 import { OpenResourceButton } from '@/components/features/resources/open-button';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { can } from '@/lib/permissions';
 import { getResourceFacets, listResources, resourceQuerySchema } from '@/lib/services/resources';
 
@@ -20,6 +21,7 @@ export default async function ResourcesPage({
   searchParams: Record<string, string | string[] | undefined>;
 }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'learning');
   const t = await getTranslations('resources');
 
   const query = resourceQuerySchema.parse(

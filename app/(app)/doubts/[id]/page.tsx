@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { ReplyForm } from '@/components/features/doubts/reply-form';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { ApiError } from '@/lib/api/errors';
 import { getDoubt } from '@/lib/services/doubts';
 
@@ -10,6 +11,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function DoubtPage({ params }: { params: { id: string } }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'doubts');
   const t = await getTranslations('doubts');
 
   try {

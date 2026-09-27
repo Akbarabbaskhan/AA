@@ -1,5 +1,9 @@
 import { route } from '@/lib/api/handler';
-import { getSubmissions, submitAssignment, submissionInputSchema } from '@/lib/services/assignments';
+import {
+  getSubmissions,
+  submitAssignment,
+  submissionInputSchema,
+} from '@/lib/services/assignments';
 
 export const dynamic = 'force-dynamic';
 

@@ -3,9 +3,12 @@ import { getPracticeGoal, setPracticeGoal, goalSchema } from '@/lib/services/pap
 
 export const dynamic = 'force-dynamic';
 
-export const GET = route({}, async ({ actor }) => getPracticeGoal(actor));
+export const GET = route({ module: 'learning' }, async ({ actor }) => getPracticeGoal(actor));
 
-export const PUT = route({ capability: 'attempt.create' }, async ({ actor, request }) => {
-  const input = goalSchema.parse(await request.json());
-  return setPracticeGoal(actor, input);
-});
+export const PUT = route(
+  { capability: 'attempt.create', module: 'learning' },
+  async ({ actor, request }) => {
+    const input = goalSchema.parse(await request.json());
+    return setPracticeGoal(actor, input);
+  },
+);

@@ -2,6 +2,7 @@ import { getTranslations, getLocale } from 'next-intl/server';
 import { EmptyState } from '@/components/ui/states';
 import { BookSlot } from '@/components/features/parents/book-slot';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { listSlots } from '@/lib/services/parents/bookings';
 import { formatDate, formatTime } from '@/lib/i18n/format';
 
@@ -15,6 +16,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function MeetingsPage() {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'meetings');
   const t = await getTranslations('parents');
   const locale = (await getLocale()) === 'ur' ? 'ur' : 'en';
 

@@ -59,6 +59,12 @@ enum LeaveStatus {
   CANCELLED
 }
 
+enum RolloverStatus {
+  PREVIEW
+  COMMITTED
+  REVERTED
+}
+
 enum BehaviourType {
   MERIT
   DEMERIT
@@ -240,6 +246,7 @@ model School {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   academicYears   AcademicYear[]
+  rolloverRuns    RolloverRun[]
   users           User[]
   students        Student[]
   guardians       Guardian[]
@@ -2014,6 +2021,37 @@ model AuditLog {
   @@index([schoolId, actorUserId, createdAt])
   @@index([schoolId, createdAt])
   @@map("audit_logs")
+}
+
+/// A year-end rollover: previewed, committed, and reversible for 24 hours.
+///
+/// The plan and the result are both stored because the revert is driven by what the commit
+/// actually did, not by recomputing what it should have done — a year later, with a term of
+/// marks on top, recomputation would be a guess.
+model RolloverRun {
+  id             String         @id @default(uuid())
+  schoolId       String         @map("school_id")
+  fromYearId     String         @map("from_year_id")
+  /// Set on commit: the year this run created.
+  toYearId       String?        @map("to_year_id")
+  status         RolloverStatus @default(PREVIEW)
+  /// The wizard's input, so a preview can be re-run or committed later unchanged.
+  inputJson      Json           @map("input_json")
+  /// What the preview said would happen, shown for confirmation.
+  planJson       Json           @map("plan_json")
+  /// What the commit actually created and changed, which is what a revert undoes.
+  resultJson     Json?          @map("result_json")
+  createdByUserId String?       @map("created_by_user_id")
+  committedAt    DateTime?      @map("committed_at")
+  revertedAt     DateTime?      @map("reverted_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, status])
+  @@index([schoolId, createdAt])
+  @@map("rollover_runs")
 }
 
 model ImportJob {

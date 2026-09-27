@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/states';
 import { RsvpButton } from '@/components/features/societies/rsvp-button';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { can } from '@/lib/permissions';
 import { eventQuerySchema, listEvents } from '@/lib/services/events';
 import { formatDate, formatTime } from '@/lib/i18n/format';
@@ -15,6 +16,7 @@ export default async function EventsPage({
   searchParams: Record<string, string | string[] | undefined>;
 }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'events');
   const t = await getTranslations('events');
   const locale = (await getLocale()) === 'ur' ? 'ur' : 'en';
 

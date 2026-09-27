@@ -4,6 +4,8 @@ import { getServerSession } from 'next-auth';
 import { AppShell } from '@/components/layouts/app-shell';
 import { authOptions } from '@/lib/auth/options';
 import { loadTenantBranding } from '@/lib/theme/load';
+import { withTenant } from '@/lib/db';
+import { getFeatureFlags } from '@/lib/services/school-settings';
 
 /**
  * Every signed-in surface renders inside the shell. The session check happens here as well
@@ -17,12 +19,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const branding = await loadTenantBranding(session.user.schoolSlug);
   const locale = await getLocale();
 
+  // Read per request: a module switched off in the console is gone on the next tap.
+  const flags = branding
+    ? await withTenant({ schoolId: branding.schoolId }, () => getFeatureFlags())
+    : undefined;
+
   return (
     <AppShell
       roles={session.user.roles}
       activeRole={session.user.activeRole}
       schoolName={branding?.displayName ?? 'Volt'}
       locale={locale === 'ur' ? 'ur' : 'en'}
+      {...(flags ? { flags } : {})}
     >
       {children}
     </AppShell>

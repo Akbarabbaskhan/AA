@@ -1,6 +1,6 @@
 import type { DeliveryStatus, NotificationChannel, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
-import { getSchoolSettings } from '@/lib/services/school-settings';
+import { getSchoolSettings, resolveChannels } from '@/lib/services/school-settings';
 import { timezoneOffsetMs } from '@/lib/utils/tz';
 import { providerFor, type OutboundMessage } from './providers';
 import { isWithinQuietHours, type QuietHours } from './quiet-hours';
@@ -79,7 +79,15 @@ export async function notify(
 
   const user = await prisma.user.findFirst({
     where: { id: userId },
-    select: { id: true, phone: true, email: true, locale: true, isActive: true },
+    select: {
+      id: true,
+      phone: true,
+      email: true,
+      locale: true,
+      isActive: true,
+      // The recipient's roles, because a school sets notification defaults per role.
+      roles: { select: { role: true } },
+    },
   });
   if (!user) {
     return { notificationIds: [], attempted: [], suppressed: [], batched: false };
@@ -133,7 +141,31 @@ export async function notify(
   const attempted: NotificationChannel[] = [];
   const suppressed: NotifyResult['suppressed'] = [];
 
-  for (const channel of spec.defaultChannels) {
+  /*
+   * The school's own defaults, on top of the code's: a school that has not signed a WhatsApp
+   * contract turns that rail off in the settings console, and one that does not want teachers
+   * texted sets a per-role default. Suppressions are still written down, because "why did this
+   * parent not get the message" must be answerable from the log alone.
+   */
+  const resolved = resolveChannels(
+    settings,
+    type,
+    user.roles.map((entry) => entry.role),
+    spec.defaultChannels,
+  );
+
+  if (resolved.disabledBySchool) {
+    for (const channel of spec.defaultChannels) {
+      await writeRow(schoolId, userId, channel, type, payload, batchKey, 'SUPPRESSED', {
+        failureReason: 'disabledBySchool',
+        sentAt: now,
+      });
+      suppressed.push({ channel, reason: 'disabledBySchool' });
+    }
+    return { notificationIds, attempted, suppressed, batched: false };
+  }
+
+  for (const channel of resolved.channels) {
     const enabled = preference.get(channel);
     if (enabled === false) {
       // Recorded rather than skipped silently: "why did the parent not get this?" must be
@@ -433,15 +465,16 @@ export async function notifyMany(
   const spec = specFor(type);
   const userIds = [...new Set(recipients.map((entry) => entry.userId))];
 
-  const [users, preferences] = await Promise.all([
+  const [users, preferences, settings] = await Promise.all([
     prisma.user.findMany({
       where: { id: { in: userIds }, isActive: true },
-      select: { id: true, phone: true, email: true },
+      select: { id: true, phone: true, email: true, roles: { select: { role: true } } },
     }),
     prisma.notificationPreference.findMany({
       where: { userId: { in: userIds }, type },
       select: { userId: true, channel: true, enabled: true },
     }),
+    getSchoolSettings(),
   ]);
 
   const byId = new Map(users.map((user) => [user.id, user]));
@@ -457,7 +490,33 @@ export async function notifyMany(
     if (!user) continue;
     const batchKey = batchKeyFor(type, recipient.userId, now);
 
-    for (const channel of spec.defaultChannels) {
+    // The same resolution as `notify`, per recipient, because their roles decide it.
+    const resolved = resolveChannels(
+      settings,
+      type,
+      user.roles.map((entry) => entry.role),
+      spec.defaultChannels,
+    );
+
+    if (resolved.disabledBySchool) {
+      for (const channel of spec.defaultChannels) {
+        rows.push({
+          schoolId,
+          userId: recipient.userId,
+          channel,
+          type,
+          payloadJson: recipient.payload as Prisma.InputJsonValue,
+          batchKey,
+          deliveryStatus: 'SUPPRESSED',
+          failureReason: 'disabledBySchool',
+          sentAt: now,
+        });
+        suppressed += 1;
+      }
+      continue;
+    }
+
+    for (const channel of resolved.channels) {
       const base = {
         schoolId,
         userId: recipient.userId,

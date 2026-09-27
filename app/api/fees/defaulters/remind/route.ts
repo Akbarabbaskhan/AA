@@ -10,7 +10,10 @@ const bodySchema = z.object({
   yearGroupId: z.string().uuid().optional(),
 });
 
-export const POST = route({ capability: 'fee.manage' }, async ({ actor, request }) => {
-  const input = bodySchema.parse(await request.json().catch(() => ({})));
-  return remindDefaulters(actor, input);
-});
+export const POST = route(
+  { capability: 'fee.manage', module: 'fees' },
+  async ({ actor, request }) => {
+    const input = bodySchema.parse(await request.json().catch(() => ({})));
+    return remindDefaulters(actor, input);
+  },
+);

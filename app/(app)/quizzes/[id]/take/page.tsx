@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { QuizSitting } from '@/components/features/quizzes/quiz-sitting';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { ApiError } from '@/lib/api/errors';
 import { prisma } from '@/lib/db';
 import { can } from '@/lib/permissions';
@@ -19,6 +20,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function TakeQuizPage({ params }: { params: { id: string } }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'learning');
   const t = await getTranslations('quizzes');
 
   if (!can(actor, 'quiz.take') || !actor.studentId) notFound();

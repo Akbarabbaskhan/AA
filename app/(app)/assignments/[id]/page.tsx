@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GradingList } from '@/components/features/assignments/grading-list';
 import { SubmitForm } from '@/components/features/assignments/submit-form';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { ApiError } from '@/lib/api/errors';
 import { can, ForbiddenError } from '@/lib/permissions';
 import { getAssignment, getSubmissions } from '@/lib/services/assignments';
@@ -13,6 +14,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function AssignmentPage({ params }: { params: { id: string } }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'learning');
   const t = await getTranslations('assignments');
   const locale = (await getLocale()) === 'ur' ? 'ur' : 'en';
 

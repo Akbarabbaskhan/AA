@@ -1,6 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import { Reconciler } from '@/components/features/fees/reconciler';
 import { requireSessionActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { can } from '@/lib/permissions';
 import { notFound } from 'next/navigation';
 
@@ -8,6 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function ReconcilePage() {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'fees');
   if (!can(actor, 'payment.reconcile')) notFound();
 
   const t = await getTranslations('reconcile');

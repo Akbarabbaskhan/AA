@@ -2,6 +2,7 @@ import { getTranslations } from 'next-intl/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/states';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { getWeaknessMap, type MasteryTopic } from '@/lib/services/quizzes/mastery';
 
 export const dynamic = 'force-dynamic';
@@ -19,6 +20,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function MasteryPage() {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'learning');
   const t = await getTranslations('mastery');
 
   const studentId = actor.studentId ?? actor.childStudentIds[0];

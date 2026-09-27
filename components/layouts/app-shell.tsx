@@ -14,6 +14,8 @@ export type AppShellProps = {
   schoolName: string;
   locale: Locale;
   impersonation?: { actorName: string; targetName: string };
+  /** Per-module flags, so a module this school switched off is not in the navigation. */
+  flags?: Readonly<Record<string, boolean>>;
 };
 
 /**
@@ -29,8 +31,9 @@ export function AppShell({
   schoolName,
   locale,
   impersonation,
+  flags,
 }: AppShellProps) {
-  const items = navFor(roles, activeRole);
+  const items = navFor(roles, activeRole, flags);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -50,7 +53,7 @@ export function AppShell({
           {children}
         </main>
       </div>
-      <BottomTabBar items={bottomTabs(roles, activeRole)} />
+      <BottomTabBar items={bottomTabs(roles, activeRole, flags)} />
     </div>
   );
 }

@@ -4,9 +4,12 @@ import { getParentRemarks } from '@/lib/services/parents';
 
 export const dynamic = 'force-dynamic';
 
-export const GET = route({ capability: 'remark.read.children' }, async ({ actor, request }) => {
-  const { studentId } = z
-    .object({ studentId: z.string().uuid().optional() })
-    .parse(Object.fromEntries(new URL(request.url).searchParams));
-  return getParentRemarks(actor, studentId);
-});
+export const GET = route(
+  { capability: 'remark.read.children', module: 'parents' },
+  async ({ actor, request }) => {
+    const { studentId } = z
+      .object({ studentId: z.string().uuid().optional() })
+      .parse(Object.fromEntries(new URL(request.url).searchParams));
+    return getParentRemarks(actor, studentId);
+  },
+);

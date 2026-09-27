@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { EmptyState } from '@/components/ui/states';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { can } from '@/lib/permissions';
 import { listQuizzes } from '@/lib/services/quizzes/quiz';
 import { getLocale } from 'next-intl/server';
@@ -18,6 +19,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function QuizzesPage() {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'learning');
   const t = await getTranslations('quizzes');
   const locale = await getLocale();
 

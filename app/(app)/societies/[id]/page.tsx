@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MembershipButton } from '@/components/features/societies/membership-button';
 import { AdmitButton } from '@/components/features/societies/admit-button';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { ApiError } from '@/lib/api/errors';
 import { can } from '@/lib/permissions';
 import { getSociety } from '@/lib/services/societies';
@@ -20,6 +21,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function SocietyPage({ params }: { params: { id: string } }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'societies');
   const t = await getTranslations('societies');
   const te = await getTranslations('events');
   const locale = (await getLocale()) === 'ur' ? 'ur' : 'en';

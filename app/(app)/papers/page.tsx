@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/states';
 import { VaultFilters } from '@/components/features/papers/vault-filters';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { can } from '@/lib/permissions';
 import { getVaultFacets, listPapers, vaultQuerySchema } from '@/lib/services/papers/vault';
 import { getPracticeGoal } from '@/lib/services/papers/practice';
@@ -29,6 +30,7 @@ export default async function PapersPage({
   searchParams: Record<string, string | string[] | undefined>;
 }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'learning');
   const t = await getTranslations('papers');
   const tp = await getTranslations('practice');
 

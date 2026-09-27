@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MarkingQueue } from '@/components/features/quizzes/marking-queue';
 import { QuestionAnalysisRow } from '@/components/features/quizzes/question-analysis';
 import { requireSessionActor, withActor } from '@/lib/auth/session';
+import { requireModule } from '@/lib/auth/module-guard';
 import { ApiError } from '@/lib/api/errors';
 import { ForbiddenError } from '@/lib/permissions';
 import { getManualMarkingQueue, getQuizAnalysis } from '@/lib/services/quizzes/analysis';
@@ -19,6 +20,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function QuizAnalysisPage({ params }: { params: { id: string } }) {
   const actor = await requireSessionActor();
+  await requireModule(actor, 'learning');
   const t = await getTranslations('quizzes');
 
   try {

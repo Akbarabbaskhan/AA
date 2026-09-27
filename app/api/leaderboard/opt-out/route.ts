@@ -3,7 +3,7 @@ import { optOutSchema, setLeaderboardOptOut } from '@/lib/services/recognition';
 
 export const dynamic = 'force-dynamic';
 
-export const PATCH = route({}, async ({ actor, request }) => {
+export const PATCH = route({ module: 'recognition' }, async ({ actor, request }) => {
   const input = optOutSchema.parse(await request.json());
   return setLeaderboardOptOut(actor, input);
 });

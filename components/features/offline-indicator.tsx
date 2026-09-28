@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
-import { pendingCount } from '@/lib/offline/attendance-queue';
+import { QUEUE_CHANGED, pendingCount } from '@/lib/offline/attendance-queue';
 import { drainQueue } from '@/lib/offline/sync-client';
 import { cn } from '@/lib/utils/cn';
 
@@ -61,9 +61,16 @@ export function OfflineIndicator({ className }: { className?: string }) {
 
   useEffect(() => {
     void refresh();
-    // Other tabs and the register itself queue work; poll rather than wire a bus for it.
+    // A register queued in this tab says so the moment it lands, so "waiting to sync"
+    // appears under the teacher's thumb rather than up to a poll later.
+    const onChange = () => void refresh();
+    window.addEventListener(QUEUE_CHANGED, onChange);
+    // The poll stays for work queued in another tab, which fires no event here.
     const interval = setInterval(() => void refresh(), 5_000);
-    return () => clearInterval(interval);
+    return () => {
+      window.removeEventListener(QUEUE_CHANGED, onChange);
+      clearInterval(interval);
+    };
   }, [refresh]);
 
   useEffect(() => {

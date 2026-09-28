@@ -107,9 +107,12 @@ export function MarksGridClient({ initial }: { initial: MarksGrid }) {
     }, 600);
   }, [grid.rows, save]);
 
-  useEffect(() => () => {
-    if (pendingSave.current) clearTimeout(pendingSave.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (pendingSave.current) clearTimeout(pendingSave.current);
+    },
+    [],
+  );
 
   function update(index: number, next: Partial<Draft>) {
     setDrafts((current) =>
@@ -196,14 +199,25 @@ export function MarksGridClient({ initial }: { initial: MarksGrid }) {
 
       <section className="grid gap-2 tablet:grid-cols-4">
         {[
-          { label: t('classMean'), value: statistics.mean === null ? '—' : statistics.mean.toFixed(1) },
-          { label: t('classMedian'), value: statistics.median === null ? '—' : String(statistics.median) },
+          {
+            label: t('classMean'),
+            value: statistics.mean === null ? '—' : statistics.mean.toFixed(1),
+          },
+          {
+            label: t('classMedian'),
+            value: statistics.median === null ? '—' : String(statistics.median),
+          },
           {
             label: t('spread'),
             value:
-              statistics.standardDeviation === null ? '—' : `±${statistics.standardDeviation.toFixed(1)}`,
+              statistics.standardDeviation === null
+                ? '—'
+                : `±${statistics.standardDeviation.toFixed(1)}`,
           },
-          { label: t('sat'), value: `${statistics.sat} · ${statistics.absent} ${t('absentCount')}` },
+          {
+            label: t('sat'),
+            value: `${statistics.sat} · ${statistics.absent} ${t('absentCount')}`,
+          },
         ].map((stat) => (
           <Card key={stat.label}>
             <CardHeader>
@@ -269,7 +283,10 @@ export function MarksGridClient({ initial }: { initial: MarksGrid }) {
                       row.isOutlier ? 'bg-[color-mix(in_srgb,var(--warning)_10%,transparent)]' : '',
                     )}
                   >
-                    <td data-numeric className="p-2 font-mono text-small text-[var(--text-tertiary)]">
+                    <td
+                      data-numeric
+                      className="p-2 font-mono text-small text-[var(--text-tertiary)]"
+                    >
                       {row.rollNumber}
                     </td>
                     <td className="p-2">
@@ -308,11 +325,17 @@ export function MarksGridClient({ initial }: { initial: MarksGrid }) {
                         )}
                       />
                       {invalid[index] ? (
-                        <span className="ms-1 text-small text-[var(--danger)]">{t('aboveTotal')}</span>
+                        <span className="ms-1 text-small text-[var(--danger)]">
+                          {t('aboveTotal')}
+                        </span>
                       ) : null}
                     </td>
                     <td data-numeric className="p-2 text-[var(--text-secondary)]">
-                      {draft.isAbsent ? t('notSat') : percent === null ? '—' : `${percent.toFixed(1)}%`}
+                      {draft.isAbsent
+                        ? t('notSat')
+                        : percent === null
+                          ? '—'
+                          : `${percent.toFixed(1)}%`}
                     </td>
                     <td className="p-2 font-medium">{grade ?? '—'}</td>
                   </tr>

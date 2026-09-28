@@ -51,6 +51,10 @@ const SOCIETIES = [
   { name: 'Literary Circle', isOpen: true, description: 'Reading, writing and the campus magazine.' },
   { name: 'Entrepreneurship Club', isOpen: true, description: 'Pitch nights, case competitions and a term project.' },
   { name: 'Community Service', isOpen: true, description: 'Weekend teaching at the partner school, and the winter drive.' },
+  { name: 'Art and Photography', isOpen: true, description: 'Darkroom Tuesdays, the spring exhibition, and the yearbook shoot.' },
+  { name: 'Mathematics Olympiad', isOpen: false, description: 'Training for the national olympiad. Selection by test in October.' },
+  { name: 'Computer Science Society', isOpen: true, description: 'Competitive programming, a robotics bench, and the winter hackathon.' },
+  { name: 'Environment Club', isOpen: true, description: 'The campus garden, the recycling drive and the tree plantation.' },
 ] as const;
 
 const EVENT_TEMPLATES = [

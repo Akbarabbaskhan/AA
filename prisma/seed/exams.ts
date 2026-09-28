@@ -18,6 +18,8 @@ export type ExamSeedSection = {
   id: string;
   subjectCode: string;
   studentIds: string[];
+  /** Who teaches it: marks are recorded as entered by them, which the reports rely on. */
+  teacherStaffId?: string | null;
 };
 
 export type ExamSeedOptions = {
@@ -145,7 +147,13 @@ export async function seedExams(
         for (const studentId of section.studentIds) {
           // A small share of students miss a paper. They are marked absent, never zero.
           if (rng.bool(0.02)) {
-            rows.push({ assessmentId, studentId, marksObtained: null, isAbsent: true });
+            rows.push({
+              assessmentId,
+              studentId,
+              marksObtained: null,
+              isAbsent: true,
+              enteredById: section.teacherStaffId ?? null,
+            });
             markCount += 1;
             continue;
           }
@@ -160,7 +168,13 @@ export async function seedExams(
           );
 
           const marks = Math.round((percent / 100) * total);
-          rows.push({ assessmentId, studentId, marksObtained: marks, isAbsent: false });
+          rows.push({
+            assessmentId,
+            studentId,
+            marksObtained: marks,
+            isAbsent: false,
+            enteredById: section.teacherStaffId ?? null,
+          });
 
           markCount += 1;
           markTotal += (marks / total) * 100;
@@ -190,6 +204,7 @@ type MarkRow = {
   studentId: string;
   marksObtained: number | null;
   isAbsent: boolean;
+  enteredById: string | null;
 };
 
 const FLUSH_EVERY_ROWS = 25_000;
@@ -212,17 +227,18 @@ async function flushMarks(
     await prisma.$executeRaw`
       INSERT INTO marks
         (id, school_id, academic_year_id, assessment_id, student_id,
-         marks_obtained, is_absent, entered_at, created_at, updated_at)
+         marks_obtained, is_absent, entered_by, entered_at, created_at, updated_at)
       SELECT
         gen_random_uuid()::text, ${options.schoolId}, ${options.academicYearId},
-        t.assessment_id, t.student_id, t.marks_obtained, t.is_absent,
+        t.assessment_id, t.student_id, t.marks_obtained, t.is_absent, t.entered_by,
         ${new Date(`${date}T12:00:00.000Z`)}, now(), now()
       FROM unnest(
         ${batch.map((row) => row.assessmentId)}::text[],
         ${batch.map((row) => row.studentId)}::text[],
         ${batch.map((row) => row.marksObtained)}::int[],
-        ${batch.map((row) => row.isAbsent)}::boolean[]
-      ) AS t(assessment_id, student_id, marks_obtained, is_absent)
+        ${batch.map((row) => row.isAbsent)}::boolean[],
+        ${batch.map((row) => row.enteredById)}::text[]
+      ) AS t(assessment_id, student_id, marks_obtained, is_absent, entered_by)
     `;
   }
 }

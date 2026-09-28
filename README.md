@@ -221,7 +221,7 @@ full fee cycle.
 | **M3 Learning** | Past paper vault, practice engine, quiz engine with auto-marking and topic mastery, assignments, resources, doubt threads | **Complete** |
 | **M4 Fees and parents** | Fee structures, bulk invoicing, bank-format vouchers, payments, discounts, defaulter aging, statement reconciliation, parent portal in Urdu, channel-agnostic notifications | **Complete** |
 | **M5 Student life** | Societies with officer roles, events with waitlists, one campus calendar, effort leaderboards and house points, badges, the career corner with transcript requests, digital ID cards and the document locker | **Complete** |
-| M6 Harden and pilot | Performance pass, security review, backup drill, audit log UI, year-end rollover | Next |
+| M6 Harden and pilot | Audit log UI, school settings and module flags, year-end rollover, the six reports with Excel and PDF export, super admin console — **shipped**. Performance pass, security review, backup drill and the load test are **in progress** | **In progress** |
 
 ### What M0 delivers
 
@@ -663,6 +663,86 @@ taken its page — so `?status=UNPAID&limit=5` returned the unpaid ones among th
 invoices, which against a settled month is none at all. The filter now runs over the whole
 scope, on three cheap queries that read only the money columns, and takes its page afterwards:
 163ms, and the rules that decide what "overdue" means are still the ones in `money.ts`.
+
+### What M6 delivers so far
+
+The hardening milestone, in progress. Five of its ten pieces are in:
+
+**The audit log as a feature, not a table.** "When a parent disputes a grade, the admin needs
+to answer in 30 seconds." So the search takes the words that actually arrive — a child's name,
+a date, "who changed it" — entity ids are resolved to labels in batch (a mark's audit id is
+`assessmentId:studentId`, which means nothing to a coordinator), and before/after is rendered
+as a field diff: *marksObtained: 62 → 71*. A student filter resolves to the set of entity ids
+that belong to that child, because an attendance record's audit row is keyed by the record, not
+by the student. What each reader may see is decided by capability, so the bursar — who holds
+`audit.read` for the finance trail — never sees a mark change, and a teacher, a student or a
+parent sees nothing at all.
+
+**School settings, and module flags that actually gate.** Branding, attendance rules,
+notification defaults per type *and per role*, the fee gate, the bank block, portal toggles,
+and a kill switch per module. A module a school switches off disappears from the navigation,
+404s at the route wrapper and 404s at the page guard — a hidden screen whose API still answers
+is not a feature flag, it is a decoration. `notify()` now resolves channels as user preference
+→ school role default → school type default → code default, so a school with no WhatsApp
+contract turns the rail off without a deploy, and every suppression is still written down.
+
+Branding is a validated theme id rather than a colour picker: every shipped theme is checked
+for contrast by test, and a free colour field is how a school ships 2:1 text on its own login
+page.
+
+**The year-end rollover.** Preview, commit, revert. The preview writes nothing but its plan —
+who moves up, who graduates, how many students take a subject the next year group does not
+offer — and says plainly what it will not touch. The commit records exactly what it created;
+the revert undoes that record rather than recomputing it, refuses after 24 hours, and refuses
+outright once the new year has registers, marks or invoices, because deleting a fortnight of
+somebody's work quietly is worse than living with a bad rollover. It is tested by committing
+for real against the seeded tenant and reverting, then asserting the school is exactly where it
+started.
+
+**The six reports, with Excel and PDF.** Daily attendance, academic performance against the
+previous series, fee collection, at-risk students, teacher activity, and board results against
+predicted grades. One builder feeds the screen, the spreadsheet, the PDF and the scheduled
+email, so they cannot disagree. The at-risk list is the one worth the trouble: low attendance,
+a two-band grade drop, missing work and overdue fees in one list, sorted by how many of those
+are true at once, with the guardian's phone number on the row — because the next action is a
+phone call.
+
+The Excel writer is a hundred and fifty lines rather than a dependency: an xlsx is a zip of
+five XML parts, and the two candidate libraries weigh a couple of megabytes and carry
+transitive advisories. It is verified in the tests by opening the output with a reference
+reader, which is the same lesson as the QR code that would not scan.
+
+Scheduling is real: a daily report does not fire on a day the school is shut, a 07:00 daily
+attendance summary covers the last day the school was actually open (nobody has marked a
+register at seven in the morning), and the email carries the headline figures with a
+short-lived link rather than attaching a 400-row spreadsheet to every principal's inbox every
+Monday.
+
+**The Volt staff console.** Every tenant with the usage that decides a renewal — active users,
+registers marked, papers attempted, invoices raised — provisioning that creates a school with
+the defaults no school can start without (a bell schedule, the CAIE scale, five fee heads at
+zero) and nothing invented, per-tenant module flags, and system health: queue depth, the oldest
+queued notification, failures and suppressions in the last day, database size.
+
+**Impersonation** was a capability with a banner and no way to start it. It works now: a signed
+cookie beside the session rather than inside it, so the session still says who really signed in
+— which is exactly what the audit trail needs — audited before the cookie is set, never onto
+another Volt staff account, and expiring in an hour.
+
+Three more capabilities that existed with nothing behind them are now implemented, because a
+permission nothing implements is a promise the product does not keep: `remark.write` (merits
+and demerits, staff-only until somebody ticks "tell the family"), `predictedgrade.set` (a
+section's predictions with the arithmetic beside each one, which is what the board-results
+report compares against), and `user.impersonate`. Four navigation entries that pointed at pages
+which did not exist — staff, remarks, reports, settings — now point at pages that do.
+
+### Still to come in M6
+
+The security and data-protection pass (CSRF, strict CORS, rate limits on report generation and
+upload, PII scrubbing, retention policy, export-all and delete-account per student), the backup
+and restore drill, the load test at 200 concurrent attendance submissions, the performance pass
+against every budget on this hardware, and the pilot material: a printed quick-start for the
+staff room and the written rollback plan for a Monday morning outage.
 
 ### Deliberately not built
 

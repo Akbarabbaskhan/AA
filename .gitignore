@@ -37,3 +37,6 @@ yarn-error.*
 .vscode/*
 !.vscode/extensions.json
 *.pem
+
+# local file storage driver — uploaded files never belong in git
+.volt-storage/

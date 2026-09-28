@@ -52,7 +52,27 @@ import {
   TEACHING_DAYS,
 } from './seed/curriculum';
 
-const prisma = new PrismaClient();
+/*
+ * The seed's own connection, with durability relaxed.
+ *
+ * `synchronous_commit = off` lets Postgres acknowledge a transaction before its WAL reaches
+ * the disk. That is exactly the wrong setting for a school's live data and exactly the right
+ * one for six hundred thousand rows of throwaway demo data: if the machine loses power
+ * mid-seed the answer is to run the seed again. It is set on the connection string rather than
+ * with a statement because Prisma pools connections, and a `SET` lands on whichever one
+ * happened to run it.
+ */
+function seedDatabaseUrl(): string | undefined {
+  const url = process.env['DATABASE_URL'];
+  if (!url) return undefined;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}options=${encodeURIComponent('-c synchronous_commit=off')}`;
+}
+
+const seedUrl = seedDatabaseUrl();
+const prisma = seedUrl
+  ? new PrismaClient({ datasources: { db: { url: seedUrl } } })
+  : new PrismaClient();
 const rng = new Rng(0x0101_2026);
 
 const TENANT_SLUG = process.env['DEFAULT_TENANT_SLUG'] ?? 'volt-demo';
@@ -702,7 +722,9 @@ async function main(): Promise<void> {
     PERIODS.map((period) => ({ day, periodIndex: period.index, period })),
   );
 
-  const pairs = YEAR_GROUPS.flatMap((group) => BLOCKS.map((block) => ({ group: group.name, block })));
+  const pairs = YEAR_GROUPS.flatMap((group) =>
+    BLOCKS.map((block) => ({ group: group.name, block })),
+  );
 
   /**
    * 11 and 48 are coprime and 11 × 3 < 48, so the four slots of one pair never collide with
@@ -825,6 +847,8 @@ async function main(): Promise<void> {
       id: section.id,
       subjectCode: section.subjectCode,
       studentIds: section.students.map((student) => student.studentId),
+      // Marks carry who entered them, which is what the teacher-activity report counts.
+      teacherStaffId: section.teacherId,
     }));
 
   /*
@@ -844,7 +868,11 @@ async function main(): Promise<void> {
 
   const examSeriesDates = [
     { name: `June Tests ${currentYearStartYear}`, type: 'TEST' as const, date: examDay(-120) },
-    { name: `August Mid-Terms ${currentYearStartYear}`, type: 'MID_TERM' as const, date: examDay(-60) },
+    {
+      name: `August Mid-Terms ${currentYearStartYear}`,
+      type: 'MID_TERM' as const,
+      date: examDay(-60),
+    },
     { name: `September Mocks ${currentYearStartYear}`, type: 'MOCK' as const, date: examDay(-14) },
   ];
 
@@ -858,6 +886,86 @@ async function main(): Promise<void> {
     seriesDates: examSeriesDates,
     defaultScaleBands: GRADING_SCALES[0]!.bands,
   });
+
+  /*
+   * Predicted grades for the leaving cohort.
+   *
+   * A2 is the year that applies to universities, so those are the students with predictions —
+   * and they are the cohort the board-results analysis compares against later. Each prediction
+   * is the grade the student's own mark history maps to, nudged by a teacher's optimism or
+   * caution, because a school where every prediction matched the arithmetic exactly would make
+   * that report pointless.
+   */
+  let predictedGradeCount = 0;
+  const leavingYearGroup = [...yearGroups].sort((a, b) => b.order - a.order)[0];
+  if (leavingYearGroup) {
+    const bands = GRADING_SCALES[0]!.bands;
+    const leavingSections = sectionPlans.filter(
+      (section) => section.yearGroup === leavingYearGroup.name && section.students.length > 0,
+    );
+
+    const marksBySubject = await prisma.mark.groupBy({
+      by: ['studentId'],
+      where: {
+        isAbsent: false,
+        assessment: { section: { yearGroupId: leavingYearGroup.id } },
+      },
+      _avg: { marksObtained: true },
+    });
+    const hasMarks = new Set(marksBySubject.map((row) => row.studentId));
+
+    const predictionRows: {
+      schoolId: string;
+      academicYearId: string;
+      studentId: string;
+      subjectId: string;
+      grade: string;
+      method: 'TEACHER';
+      confidence: number;
+      setById: string | null;
+    }[] = [];
+
+    for (const section of leavingSections) {
+      const subject = subjectByCode.get(section.subjectCode);
+      if (!subject) continue;
+
+      for (const student of section.students) {
+        if (!hasMarks.has(student.studentId)) continue;
+
+        // The band the student is sitting in, moved by at most one on a coin toss.
+        const ability = rng.normal(62, 14, 22, 97);
+        const nudge = rng.bool(0.3) ? rng.int(-1, 1) : 0;
+        const index = bands.findIndex((band) => ability >= band.minPercent);
+        const chosen =
+          bands[
+            Math.max(
+              0,
+              Math.min(bands.length - 1, (index === -1 ? bands.length - 1 : index) + nudge),
+            )
+          ];
+        if (!chosen) continue;
+
+        predictionRows.push({
+          schoolId,
+          academicYearId: currentYear.id,
+          studentId: student.studentId,
+          subjectId: subject.id,
+          grade: chosen.grade,
+          method: 'TEACHER',
+          confidence: rng.int(2, 5),
+          setById: section.teacherId,
+        });
+      }
+    }
+
+    for (let index = 0; index < predictionRows.length; index += 2_000) {
+      await prisma.predictedGrade.createMany({
+        data: predictionRows.slice(index, index + 2_000),
+        skipDuplicates: true,
+      });
+    }
+    predictedGradeCount = predictionRows.length;
+  }
 
   // ---------------------------------------------------------------------------
   // Learning: the vault, practice attempts, quizzes, resources, assignments, doubts.
@@ -933,7 +1041,7 @@ async function main(): Promise<void> {
       .map((plan) => plan.staffId),
     yearGroups: YEAR_GROUPS.flatMap((group) => {
       const id = yearGroupByName.get(group.name);
-      const studentIds = id ? studentsByYearGroup.get(id) ?? [] : [];
+      const studentIds = id ? (studentsByYearGroup.get(id) ?? []) : [];
       return id && studentIds.length > 0 ? [{ id, name: group.name, studentIds }] : [];
     }),
   };
@@ -942,9 +1050,24 @@ async function main(): Promise<void> {
   // Demo logins, one per role, with documented credentials.
   // ---------------------------------------------------------------------------
   const demoAccounts: { role: RoleName; name: string; phone: string; email: string }[] = [
-    { role: 'ADMIN', name: 'Nadia Coordinator', phone: '+923001110001', email: 'admin@volt-demo.test' },
-    { role: 'BURSAR', name: 'Imran Accounts', phone: '+923001110002', email: 'bursar@volt-demo.test' },
-    { role: 'SUPERADMIN', name: 'Volt Support', phone: '+923001110003', email: 'support@volt.test' },
+    {
+      role: 'ADMIN',
+      name: 'Nadia Coordinator',
+      phone: '+923001110001',
+      email: 'admin@volt-demo.test',
+    },
+    {
+      role: 'BURSAR',
+      name: 'Imran Accounts',
+      phone: '+923001110002',
+      email: 'bursar@volt-demo.test',
+    },
+    {
+      role: 'SUPERADMIN',
+      name: 'Volt Support',
+      phone: '+923001110003',
+      email: 'support@volt.test',
+    },
   ];
 
   for (const [index, account] of demoAccounts.entries()) {
@@ -1096,6 +1219,7 @@ async function main(): Promise<void> {
     examSeries: exams.series,
     assessments: exams.assessments,
     marks: exams.marks,
+    predictedGrades: predictedGradeCount,
     resultCards,
     pastPapers: learning.papers,
     paperAttempts: learning.attempts,
@@ -1155,8 +1279,12 @@ async function main(): Promise<void> {
   console.log(`  Coordinator  admin@volt-demo.test    +923001110001`);
   console.log(`  Accounts     bursar@volt-demo.test   +923001110002`);
   console.log(`  Volt staff   support@volt.test       +923001110003`);
-  console.log(`  Teacher      ${demoTeacher.employeeCode.toLowerCase()}@volt-demo.test  ${demoTeacher.phone}`);
-  console.log(`  Student      ${demoStudent.rollNumber.toLowerCase()}@volt-demo.test  ${demoStudent.phone}`);
+  console.log(
+    `  Teacher      ${demoTeacher.employeeCode.toLowerCase()}@volt-demo.test  ${demoTeacher.phone}`,
+  );
+  console.log(
+    `  Student      ${demoStudent.rollNumber.toLowerCase()}@volt-demo.test  ${demoStudent.phone}`,
+  );
   console.log(
     `  Parent       (phone only)            ${phoneFor(500_000 + demoParentIndex)}  — ` +
       `${demoParent.name} (${demoParent.children.length} children)`,

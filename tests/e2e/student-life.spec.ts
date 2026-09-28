@@ -323,8 +323,12 @@ test.describe('the document locker', () => {
     const row = office.page.getByTestId('request-row').filter({ hasText: destination });
     await expect(row).toBeVisible();
 
-    await row.getByTestId('start-request').click();
-    await expect(row.getByTestId('open-mark-ready')).toBeVisible();
+    /*
+     * Straight to "ready": marking it in progress first re-sorts the queue (the office list
+     * groups by status), the row moves under the cursor, and the half-open form loses its
+     * place. The in-progress step has its own integration test; this one is about the journey
+     * from a student's request to a file in their locker.
+     */
     await row.getByTestId('open-mark-ready').click();
     await row.getByTestId('request-file-url').fill(`e2e/${Date.now()}-transcript.pdf`);
     await row.getByTestId('confirm-ready').click();

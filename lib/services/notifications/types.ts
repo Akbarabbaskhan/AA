@@ -103,6 +103,16 @@ export const NOTIFICATION_TYPES = {
     batching: 'DAILY_PER_USER',
     audience: 'ANY',
   },
+  'report.ready': {
+    /*
+     * A scheduled report. In-app and email only: a principal's Monday summary is not urgent
+     * enough to buzz a phone at 07:00, and there is no approved WhatsApp template for it.
+     */
+    defaultChannels: ['IN_APP', 'EMAIL'],
+    isUrgent: false,
+    batching: 'NONE',
+    audience: 'ANY',
+  },
   'security.alert': {
     // A password change or a new device. Always through, always now.
     defaultChannels: ['IN_APP', 'EMAIL', 'SMS'],

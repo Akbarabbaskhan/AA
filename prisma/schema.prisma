@@ -59,6 +59,17 @@ enum LeaveStatus {
   CANCELLED
 }
 
+enum ReportCadence {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum ReportFormat {
+  XLSX
+  PDF
+}
+
 enum RolloverStatus {
   PREVIEW
   COMMITTED
@@ -247,6 +258,8 @@ model School {
 
   academicYears   AcademicYear[]
   rolloverRuns    RolloverRun[]
+  boardResults    BoardResult[]
+  reportSchedules ReportSchedule[]
   users           User[]
   students        Student[]
   guardians       Guardian[]
@@ -522,6 +535,7 @@ model Student {
   marks             Mark[]
   resultCards       ResultCard[]
   predictedGrades   PredictedGrade[]
+  boardResults      BoardResult[]
   paperAttempts     PaperAttempt[]
   submissions       Submission[]
   quizAttempts      QuizAttempt[]
@@ -701,6 +715,7 @@ model Subject {
   pastPapers      PastPaper[]
   syllabusTopics  SyllabusTopic[]
   topicMastery    TopicMastery[]
+  boardResults    BoardResult[]
   predictedGrades PredictedGrade[]
   questions       Question[]
   doubtThreads    DoubtThread[]
@@ -2052,6 +2067,59 @@ model RolloverRun {
   @@index([schoolId, status])
   @@index([schoolId, createdAt])
   @@map("rollover_runs")
+}
+
+/// An actual board result, entered once CAIE or Pearson publishes.
+///
+/// Kept separate from `Mark`, which is the school's own assessment: a board grade is not a
+/// mark out of anything, it arrives months later, and conflating the two is how a predicted
+/// grade ends up compared against itself.
+model BoardResult {
+  id          String   @id @default(uuid())
+  schoolId    String   @map("school_id")
+  studentId   String   @map("student_id")
+  subjectId   String   @map("subject_id")
+  /// The board session as the board names it: "June 2026".
+  session     String
+  grade       String
+  enteredById String?  @map("entered_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, subjectId, session])
+  @@index([schoolId, session])
+  @@map("board_results")
+}
+
+/// A report a school has asked for on a schedule.
+///
+/// "A principal who gets a Monday morning summary in their inbox stops asking whether the
+/// system is being used."
+model ReportSchedule {
+  id           String        @id @default(uuid())
+  schoolId     String        @map("school_id")
+  /// One of the report keys the reports module exposes.
+  reportKey    String        @map("report_key")
+  cadence      ReportCadence
+  /// Local hour of day to send, in the school's timezone.
+  hourLocal    Int           @default(7) @map("hour_local")
+  format       ReportFormat  @default(XLSX)
+  /// The users who receive it. Roles are resolved to users when it runs, not when it is set.
+  recipientsJson Json        @map("recipients_json")
+  isActive     Boolean       @default(true) @map("is_active")
+  lastRunAt    DateTime?     @map("last_run_at")
+  createdById  String?       @map("created_by")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, isActive])
+  @@map("report_schedules")
 }
 
 model ImportJob {

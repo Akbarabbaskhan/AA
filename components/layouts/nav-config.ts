@@ -70,6 +70,7 @@ export const NAV_BY_ROLE: Readonly<Record<RoleName, readonly NavItem[]>> = Objec
     { key: 'societies', href: '/societies', icon: 'users' },
     { key: 'careers', href: '/careers/requests', icon: 'compass' },
     { key: 'remarks', href: '/remarks', icon: 'message' },
+    { key: 'predictions', href: '/exams/predictions', icon: 'target' },
   ],
   HOD: [
     { key: 'dashboard', href: '/dashboard', icon: 'home' },
@@ -148,7 +149,7 @@ export function primaryRole(roles: readonly RoleName[]): RoleName {
  */
 export const MODULE_NAV_KEYS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   attendance: ['attendance'],
-  exams: ['exams', 'marks', 'results'],
+  exams: ['exams', 'marks', 'results', 'predictions'],
   learning: ['papers', 'quizzes', 'assignments', 'resources', 'mastery'],
   fees: ['fees', 'defaulters', 'reconcile'],
   parents: ['children'],

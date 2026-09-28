@@ -40,7 +40,8 @@
     "events": "Events",
     "audit": "Audit log",
     "tenants": "Schools",
-    "rollover": "Year-end rollover"
+    "rollover": "Year-end rollover",
+    "predictions": "Predicted grades"
   },
   "auth": {
     "signIn": "Sign in",
@@ -955,6 +956,132 @@
       "PREVIEW": "previewed",
       "COMMITTED": "run",
       "REVERTED": "undone"
+    }
+  },
+  "reports": {
+    "title": "Reports",
+    "subtitle": "Six reports, each one exportable to Excel or PDF.",
+    "audience": "For",
+    "none": "No reports are available to you",
+    "noneBody": "Reports are for coordinators, heads of department and the accounts office.",
+    "exportExcel": "Export to Excel",
+    "exportPdf": "Export to PDF",
+    "apply": "Apply",
+    "date": "Date",
+    "series": "Exam series",
+    "session": "Board session",
+    "nothing": "Nothing to report.",
+    "yes": "yes",
+    "no": "no",
+    "truncated": "Showing the first {shown} of {total} rows. The export has all of them.",
+    "enterBoardResults": "Enter board results",
+    "boardPasteHint": "One per line: roll number, subject code, grade",
+    "cancel": "Cancel",
+    "save": "Save results",
+    "saving": "Saving…",
+    "boardSaved": "{recorded} recorded, {updated} corrected.",
+    "boardProblem": "Line {line}: {reason}",
+    "report": {
+      "daily-attendance": {
+        "title": "Daily attendance summary",
+        "body": "Campus percentage, year group by year group, who is absent, and which registers are still unmarked.",
+        "audience": "Principal and coordinators"
+      },
+      "academic-performance": {
+        "title": "Academic performance",
+        "body": "Grade distribution by subject, section and teacher, against the previous series.",
+        "audience": "Principal and heads of department"
+      },
+      "fee-collection": {
+        "title": "Fee collection",
+        "body": "Collected against what is due, outstanding by aging bucket, and how the money arrived.",
+        "audience": "Bursar and principal"
+      },
+      "at-risk": {
+        "title": "At-risk students",
+        "body": "Low attendance, a two-band grade drop, missing work and overdue fees, combined into one list.",
+        "audience": "Coordinators"
+      },
+      "teacher-activity": {
+        "title": "Teacher activity",
+        "body": "Register marking compliance, marks entered, assignments set and resources uploaded.",
+        "audience": "Principal and heads of department"
+      },
+      "board-results": {
+        "title": "Board results analysis",
+        "body": "What the board awarded against what the school predicted, subject by subject.",
+        "audience": "Principal"
+      }
+    },
+    "schedules": "Scheduled reports",
+    "cadenceLabel": "How often",
+    "hour": "At",
+    "format": "Format",
+    "recipients": "Who gets it",
+    "scheduleIt": "Schedule it",
+    "active": "on",
+    "cadence": {
+      "DAILY": "every school day",
+      "WEEKLY": "every Monday",
+      "MONTHLY": "monthly"
+    }
+  },
+  "predictions": {
+    "title": "Predicted grades",
+    "subtitle": "Your judgement, with the arithmetic beside it. These are the grades that go on an application.",
+    "sections": "Sections",
+    "student": "Student",
+    "mean": "Mean so far",
+    "suggested": "Suggested",
+    "predicted": "Predicted",
+    "predictedFor": "Predicted grade for {name}",
+    "useSuggestions": "Fill the blanks with the suggestion",
+    "save": "Save predictions",
+    "saving": "Saving…",
+    "saved": "{count} saved",
+    "noSections": "You do not teach any sections this year",
+    "noSectionsBody": "Predictions are made per section by the teacher who teaches it.",
+    "noStudents": "Nobody is enrolled in this section"
+  },
+  "tenants": {
+    "title": "Schools",
+    "subtitle": "Every tenant, what they are using, and whether anything is stuck.",
+    "schools": "{count} schools",
+    "inactive": "inactive",
+    "provision": "Add a school",
+    "create": "Create the school",
+    "creating": "Creating…",
+    "created": "Created. They sign in at /{slug}.",
+    "cancel": "Cancel",
+    "minutes": "{count} min",
+    "field": {
+      "name": "School name",
+      "slug": "Handle (letters, numbers, hyphens)",
+      "theme": "Theme",
+      "adminName": "First coordinator",
+      "adminEmail": "Their email",
+      "adminPhone": "Their phone",
+      "adminPassword": "Temporary password (12 characters or more)",
+      "yearLabel": "Academic year",
+      "yearStart": "Year starts",
+      "yearEnd": "Year ends"
+    },
+    "health": {
+      "queue": "Queued notifications",
+      "oldest": "Oldest queued",
+      "failed": "Failed, 24h",
+      "suppressed": "Suppressed, 24h",
+      "audit": "Audit rows, 24h",
+      "database": "Database"
+    },
+    "column": {
+      "school": "School",
+      "students": "Students",
+      "staff": "Staff",
+      "activeUsers": "Active users, 30d",
+      "registers": "Registers, 30d",
+      "papers": "Papers, 30d",
+      "modulesOff": "Modules off"
     }
   }
 }

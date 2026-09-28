@@ -62,10 +62,24 @@ export async function getDeviceId(): Promise<string> {
   return value;
 }
 
+/**
+ * The pending count lives in IndexedDB, which fires no events of its own. The indicator in
+ * the header polls it, but a teacher who has just tapped Submit should not wait out a poll
+ * to be told their work is safe — so every write announces itself and the indicator reads
+ * again at once. The poll stays, for changes made in another tab.
+ */
+export const QUEUE_CHANGED = 'volt:queue-changed';
+
+function announceQueueChange(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(QUEUE_CHANGED));
+}
+
 export async function enqueueRegister(
   entry: Omit<QueuedRegister, 'queuedAt' | 'attempts'>,
 ): Promise<void> {
   await put<QueuedRegister>(STORE_QUEUE, { ...entry, queuedAt: Date.now(), attempts: 0 });
+  announceQueueChange();
 }
 
 export async function pendingRegisters(): Promise<QueuedRegister[]> {
@@ -81,6 +95,7 @@ export async function pendingCount(): Promise<number> {
 
 export async function dequeueRegister(id: string): Promise<void> {
   await remove(STORE_QUEUE, id);
+  announceQueueChange();
 }
 
 export async function recordFailure(entry: QueuedRegister, message: string): Promise<void> {
@@ -89,6 +104,7 @@ export async function recordFailure(entry: QueuedRegister, message: string): Pro
     attempts: entry.attempts + 1,
     lastError: message,
   });
+  announceQueueChange();
 }
 
 export async function cacheRegister(

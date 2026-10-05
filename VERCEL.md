@@ -150,6 +150,12 @@ A demo that opens on the dashboard and scrolls is forgettable. These four land:
 
 - **Vercel Hobby is non-commercial.** Fine for showing people. A real school pilot needs the
   $20/month Pro plan, which also raises the function timeout.
+- **Hobby allows one cron run per day**, so `vercel.json` fires the report runner once, at
+  02:00 UTC — 07:00 in Karachi, which is when the daily attendance summary wants to go out.
+  Schedules set to any other hour will not fire until that run comes round. Pro lifts this;
+  change the schedule to `0 * * * *` for hourly and every schedule fires on its own hour.
+  Nothing else in Volt depends on the cron — reports can always be run by hand from the
+  Reports screen.
 - **Cold starts.** The first request after a quiet spell takes a second or two. Open the app
   yourself a minute before you show anyone.
 - **Neon's free tier sleeps** after five minutes idle. The first query then takes a few

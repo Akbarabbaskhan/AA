@@ -20,7 +20,7 @@ Three rules from the spec govern everything here:
 ## Quick start
 
 ```bash
-cp .env.example .env         # then set DATABASE_URL, REDIS_URL and NEXTAUTH_SECRET
+cp .env.example .env         # then set DATABASE_URL and NEXTAUTH_SECRET
 npm install
 npx prisma migrate deploy
 npm run db:seed
@@ -67,7 +67,13 @@ docker compose down            # stop, keep the data
 docker compose down -v         # stop and delete the database volume
 ```
 
-The app runs with only `DATABASE_URL` and `REDIS_URL` set. Every external integration
+### Or put it on a URL
+
+[`VERCEL.md`](VERCEL.md) is the click-by-click path to a deployed demo: Neon for the
+database, Cloudflare R2 for files, Vercel for the app, and one command from your machine to
+load the demo data. About forty minutes, no Docker.
+
+The app runs with only `DATABASE_URL` set. Every external integration
 (WhatsApp, SMS, email, payments, object storage) sits behind an interface whose mock
 implementation is selected when its key is absent, so the product is fully demoable before
 any gateway contract exists.

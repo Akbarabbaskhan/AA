@@ -7,8 +7,7 @@ import { detectFileType, FileTooLargeError, MAX_UPLOAD_BYTES, UnsupportedFileTyp
  * File storage.
  *
  * "Every integration sits behind an interface with a mock implementation selected when its
- * key is absent, so the whole app runs and demos locally with only DATABASE_URL and
- * REDIS_URL set."
+ * key is absent, so the whole app runs and demos locally with only DATABASE_URL set."
  *
  * Production is S3-compatible (Cloudflare R2, for zero egress on a past paper hundreds of
  * students download). Locally the same interface writes to disk and serves through a signed

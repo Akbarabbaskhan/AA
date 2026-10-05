@@ -16,6 +16,15 @@ const nextConfig = {
   experimental: {
     // argon2 is a native module; keep it server-side only.
     serverComponentsExternalPackages: ['argon2', '@prisma/client'],
+    /*
+     * argon2 loads its own .node binary through node-gyp-build, which resolves the path at
+     * runtime. Next's file tracing cannot see through that, so on a serverless platform the
+     * binary is left out of the bundle and sign-in fails with a module-not-found at the first
+     * password check. Naming the package here puts it in regardless.
+     */
+    outputFileTracingIncludes: {
+      '/**': ['./node_modules/argon2/**'],
+    },
   },
   async headers() {
     return [

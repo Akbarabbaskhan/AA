@@ -48,12 +48,19 @@ export type TenantBranding = {
  * school is a new theme file and a row, and nothing else.
  */
 export async function loadTenantBranding(slug: string): Promise<TenantBranding | null> {
+  /*
+   * A build runs this: the root layout and the login page both read branding, and Next
+   * renders them once at build time. On a platform that builds before the database exists —
+   * or before the migrations have run — an exception here fails the whole deploy over a
+   * school's logo. An unreachable database means "no branding yet", and every caller already
+   * handles that by falling back to the default theme.
+   */
   const school = await withoutTenantScope(() =>
     prisma.school.findFirst({
       where: { slug, isActive: true },
       select: { id: true, slug: true, name: true, logoUrl: true, themeJson: true },
     }),
-  );
+  ).catch(() => null);
   if (!school) return null;
 
   const themeId =

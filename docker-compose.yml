@@ -19,21 +19,6 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    # Notification fan-out and report generation must survive a restart.
-    command: ['redis-server', '--appendonly', 'yes']
-    volumes:
-      - redis-data:/data
-    ports:
-      - '6379:6379'
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Migrations run as their own step, before the app is allowed to start. A web process that
   # races a schema change is how you get half a term of marks written against the old shape.
   # The runner image already carries the migrations and the Prisma CLI; `npx` is avoided
@@ -76,11 +61,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      redis:
-        condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-volt}:${POSTGRES_PASSWORD:-volt}@db:5432/${POSTGRES_DB:-volt}?schema=public
-      REDIS_URL: redis://redis:6379
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?set NEXTAUTH_SECRET in .env}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       APP_URL: ${APP_URL:-http://localhost:3000}
@@ -92,4 +74,3 @@ services:
 
 volumes:
   db-data:
-  redis-data:

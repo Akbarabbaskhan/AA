@@ -3,7 +3,7 @@
 A multi-tenant school ERP and student portal for A Level and O Level campuses in Pakistan.
 
 This repository implements the Volt Product & Engineering Spec. It is built milestone by
-milestone; **M0 (Foundation), M1 (Attendance core) and M2 (Academics) are complete**. See
+milestone; **M0 through M5 are complete and M6 (Harden and pilot) is in progress**. See
 [Milestone status](#milestone-status).
 
 Three rules from the spec govern everything here:
@@ -27,10 +27,44 @@ npm run db:seed
 npm run dev
 ```
 
-Or bring the whole stack up with Docker:
+### Or bring the whole stack up with Docker
+
+You need Docker Desktop (macOS, Windows) or Docker Engine with the Compose plugin (Linux);
+`docker compose version` should answer. Nothing else — no Node, no Postgres, no Redis.
 
 ```bash
-NEXTAUTH_SECRET=$(openssl rand -base64 32) docker compose up --build
+git clone https://github.com/Akbarabbaskhan/AA.git
+cd AA
+
+# Compose reads .env for its own substitution, so the secret belongs there.
+cp .env.example .env
+echo "NEXTAUTH_SECRET=$(openssl rand -base64 32)" >> .env
+
+docker compose up --build -d                 # Postgres, Redis, migrations, then the app
+docker compose --profile seed run --rm seed   # the demo tenant — once, on purpose
+```
+
+Open `http://localhost:3000` and sign in with the demo logins below.
+
+Three things worth knowing about that:
+
+- **Migrations are their own step.** The `migrate` service runs `prisma migrate deploy` and
+  the app is not allowed to start until it exits cleanly, because a web process that races a
+  schema change is how you get half a term of marks written against the old shape.
+- **Seeding is deliberate.** It sits behind a Compose profile rather than running on every
+  `up`: it takes about a hundred seconds and writes three thousand students, a term of
+  attendance, three exam series and a fee ledger. An empty Volt is a working Volt — you just
+  have nobody to sign in as, so run it once.
+- **Postgres and Redis publish their ports** (5432, 6379), which is what lets you point
+  `prisma studio` or `psql` at them. If you already run either locally, the containers will
+  not start; comment out those `ports:` lines, or stop the local service.
+
+Day to day:
+
+```bash
+docker compose logs -f app     # follow the app
+docker compose down            # stop, keep the data
+docker compose down -v         # stop and delete the database volume
 ```
 
 The app runs with only `DATABASE_URL` and `REDIS_URL` set. Every external integration

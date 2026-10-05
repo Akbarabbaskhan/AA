@@ -34,13 +34,48 @@ services:
       timeout: 5s
       retries: 5
 
+  # Migrations run as their own step, before the app is allowed to start. A web process that
+  # races a schema change is how you get half a term of marks written against the old shape.
+  # The runner image already carries the migrations and the Prisma CLI; `npx` is avoided
+  # deliberately, because the standalone bundle has no node_modules/.bin to resolve it from.
+  migrate:
+    build:
+      context: .
+    restart: 'no'
+    command: ['node', 'node_modules/prisma/build/index.js', 'migrate', 'deploy']
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-volt}:${POSTGRES_PASSWORD:-volt}@db:5432/${POSTGRES_DB:-volt}?schema=public
+
+  # The demo tenant: 3,000 students, a term of attendance, three exam series, a fee ledger.
+  # Behind a profile, because seeding is a thing you do once on purpose, not on every `up`.
+  # Built from the builder stage — the seed is TypeScript and needs the full dependency tree,
+  # which the production image deliberately does not carry.
+  #   docker compose --profile seed run --rm seed
+  seed:
+    profiles: ['seed']
+    build:
+      context: .
+      target: builder
+    restart: 'no'
+    command: ['npm', 'run', 'db:seed']
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-volt}:${POSTGRES_PASSWORD:-volt}@db:5432/${POSTGRES_DB:-volt}?schema=public
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?set NEXTAUTH_SECRET in .env}
+      DEFAULT_TENANT_SLUG: ${DEFAULT_TENANT_SLUG:-volt-demo}
+
   app:
     build:
       context: .
     restart: unless-stopped
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     environment:

@@ -8,3 +8,5 @@ tests/e2e
 .env.local
 coverage
 playwright-report
+.volt-storage
+test-results
